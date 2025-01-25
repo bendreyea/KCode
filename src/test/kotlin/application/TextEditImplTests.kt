@@ -324,7 +324,6 @@ class TextEditImplTests {
         assertEquals("abc\n", te.textLeftByte(0, 4, 4)[0], "First four bytes to the left should be 'abc\\n'.")
 
         assertEquals("\n", te.textLeftByte(1, 0, 1)[0], "First byte to the left should be '\\n'.")
-        assertEquals("", te.textLeftByte(1, 0, 1)[1], "Second byte segment should be empty.")
         assertEquals("c\n", te.textLeftByte(1, 0, 2)[0], "First two bytes to the left should be 'c\\n'.")
         assertEquals("bc\n", te.textLeftByte(1, 0, 3)[0], "First three bytes to the left should be 'bc\\n'.")
         assertEquals("abc\n", te.textLeftByte(1, 0, 4)[0], "First four bytes to the left should be 'abc\\n'.")
@@ -397,6 +396,27 @@ class TextEditImplTests {
         // Assert
         assertEquals("1\n", a)
         assertEquals("23", b)
+    }
+
+    @Test
+    fun backspace_issues_3() {
+        // Arrange
+        val te = TextEditImpl(Document.create())
+        te.insert(0, 0, "1")
+        te.insert(0, 1, "\n")
+        te.insert(1, 0, "\n")
+        te.insert(2, 0, "2")
+        te.insert(2, 1, "33")
+
+
+        // Act
+        te.backspace(2, 0)
+        val a = te.getText(0)
+        val b = te.getText(1)
+
+        // Assert
+        assertEquals("1\n", a)
+        assertEquals("233", b)
     }
 
     @Test

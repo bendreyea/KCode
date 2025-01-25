@@ -98,10 +98,10 @@ class KTextPane(
 
         // Compute the actual on-screen rectangle that changed
         val visibleStartRow = max(0, controller.scrollY / lineHeight)
-        val visibleEndRow = min(textPane.rows(), (controller.scrollY + viewportHeight) / lineHeight)
+        val visibleEndRow = (controller.scrollY + viewportHeight) / lineHeight
 
         val repaintStartRow = max(startRow, visibleStartRow)
-        val repaintEndRow = min(endRow, visibleEndRow)
+        val repaintEndRow = max(endRow, visibleEndRow)
 
         if (repaintStartRow <= repaintEndRow) {
             val y = repaintStartRow * lineHeight - controller.scrollY
@@ -121,7 +121,6 @@ class KTextPane(
         val repaintStartY = visibleStartRow * lineHeight - scrollY
         val repaintEndY = (visibleEndRow + 1) * lineHeight - scrollY
         val repaintHeight = repaintEndY - repaintStartY
-        println("repaint visible region: $visibleStartRow, $visibleEndRow")
         scheduleRepaint(Rectangle(0, repaintStartY, width, repaintHeight))
     }
 
@@ -159,6 +158,7 @@ class KTextPane(
                     }
                     dirtyRegion = null
                     repaintPending = false
+
                 }
             }
         }

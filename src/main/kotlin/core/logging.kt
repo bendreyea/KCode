@@ -46,5 +46,7 @@ inline fun <T> logPerformance(label: String, block: () -> T): T {
     val result = block()
     val endTime = System.nanoTime()
     metrics.record((endTime - startTime) / 1_000_000)
+    println("$label: ${(endTime - startTime) / 1_000_000}ms")
     return result
+
 }

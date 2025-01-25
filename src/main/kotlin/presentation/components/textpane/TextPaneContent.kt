@@ -18,7 +18,7 @@ class TextPaneContent(private val textEdit: TextEdit,
     private val listeners = mutableListOf<(Int, Int) -> Unit>()
     private val parser = SyntaxHighlighter()
     private val channel = Channel<Pair<IntRange, (Int) -> String>>(capacity = 100)
-    private val numConsumers = 4
+    private val numConsumers = Runtime.getRuntime().availableProcessors()
 
     private var measureMaxLineWidth = 0
 
@@ -86,9 +86,13 @@ class TextPaneContent(private val textEdit: TextEdit,
 
         val changedRange = from..to
 
+        val subRanges = splitRange(changedRange, numConsumers / 2)
+
         // dispatch the parse range to our channel so that it runs in the background.
-        mainScope.launch {
-            produceRows(changedRange) { lineIndex -> getText(lineIndex) }
+        subRanges.forEachIndexed { index, subRange ->
+            mainScope.launch {
+                produceRows(subRange) { lineIndex -> getText(lineIndex) }
+            }
         }
     }
 
@@ -127,7 +131,6 @@ class TextPaneContent(private val textEdit: TextEdit,
 
     fun insertChar(row: Int, col: Int, c: Char): Caret {
         val prevTotalRows = rows()
-        println("Inserting char $c at $row, $col")
         val cursor = textEdit.insert(row, col, c.toString())
         onTextChanged(row, cursor.row, prevTotalRows)
 
@@ -136,7 +139,6 @@ class TextPaneContent(private val textEdit: TextEdit,
 
     fun insert(row: Int, col: Int, text: String): Caret {
         val prevRows = rows()
-        println("Inserting char $text at $row, $col")
         val cursor = textEdit.insert(row, col, text)
         onTextChanged(row, cursor.row, prevRows)
 
@@ -161,5 +163,25 @@ class TextPaneContent(private val textEdit: TextEdit,
 
     private fun notifyChange(start: Int, end: Int) {
         listeners.forEach { it.invoke(start, end) }
+    }
+
+    private fun splitRange(range: IntRange, parts: Int): List<IntRange> {
+        require(parts > 0) { "Number of parts must be greater than zero." }
+
+        val totalElements = range.last - range.first + 1
+        val baseSize = totalElements / parts
+        val remainder = totalElements % parts
+
+        val subRanges = mutableListOf<IntRange>()
+        var start = range.first
+
+        for (i in 0 until parts) {
+            val extra = if (i < remainder) 1 else 0
+            val end = start + baseSize + extra - 1
+            subRanges.add(start..minOf(end, range.last))
+            start = end + 1
+        }
+
+        return subRanges
     }
 }

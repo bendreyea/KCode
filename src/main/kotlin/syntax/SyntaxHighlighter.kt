@@ -423,14 +423,14 @@ class SyntaxHighlighter {
         return storeIntervalsAndMakeResult(intervals, state, bracketStack, row)
     }
 
-    /** Decide a new chunk size based on total lines. Tweak to suit your performance needs. */
+    /** Decide a new chunk size based on total lines. */
     private fun recalcChunkSize(totalRows: Int) {
         chunkSize = when {
-            totalRows < 2000 -> 100
-            totalRows < 5000 -> 200
-            totalRows < 10000 -> 500
-            totalRows < 50000 -> 1000
-            else -> 2000
+            totalRows < 2000 -> 15
+            totalRows < 5000 -> 30
+            totalRows < 10000 -> 60
+            totalRows < 50000 -> 90
+            else -> 120
         }
     }
 

@@ -54,7 +54,8 @@ class DocumentImpl private constructor(
     override fun delete(row: Int, col: Int, cs: CharSequence) {
         // Convert the text to delete into bytes
         val bytes = cs.toString().toByteArray(charset)
-        if (bytes.isEmpty()) return
+        if (bytes.isEmpty())
+            return
 
         // 1) Special case: Deleting exactly "\n" at the *start* of row>0
         //    => The actual newline physically belongs to the end of row-1
@@ -75,8 +76,6 @@ class DocumentImpl private constructor(
             index.delete(row - 1, prevRowLen - 1, 1)
         }
         else {
-            // 2) Normal deletion path: remove `bytes.size` from (row,col)
-            //    Convert (row,col) to a byte offset in rowIndex
             val prefix = getText(row).substring(0, col)
             val byteCol = prefix.toByteArray(charset).size
 
@@ -86,10 +85,7 @@ class DocumentImpl private constructor(
         }
     }
 
-
-
     override fun getText(row: Int): CharSequence {
-        val r = get(row)
         return String(get(row), charset)
     }
 

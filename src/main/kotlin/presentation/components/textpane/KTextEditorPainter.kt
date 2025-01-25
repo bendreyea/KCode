@@ -16,7 +16,7 @@ class KTextEditorPainter(
         g2.translate(-controller.scrollX, -controller.scrollY)
 
         paintGutter(g2, height)
-        paintLines(g2)
+        paintLines(g2, width, height)
         if (controller.hasSelection)
             paintSelection(g2)
 
@@ -33,16 +33,42 @@ class KTextEditorPainter(
         g2.fillRect(0, 0, editorTheme.gutterWidth, height)
     }
 
-    private fun paintLines(g2: Graphics2D) {
+    private fun paintLines(g2: Graphics2D, widthWindow: Int, heightWindow: Int) {
         val clip = g2.clipBounds
         // Determine which rows are visible in the clip
         val firstRow = max(0, clip.y / fontMetrics.height)
         val lastRow = min(textPane.rows() - 1, (clip.y + clip.height) / fontMetrics.height)
 
+        // Draw the visible rows
         for (row in firstRow..lastRow) {
             paintLine(g2, row)
         }
+
+        // Fill the rest of the area after the last row if needed
+        val totalRowsHeight = textPane.rows() * fontMetrics.height
+
+        if (clip.y + clip.height > totalRowsHeight) {
+            g2.color = editorTheme.canvasBackgroundColor // Use the background color
+            g2.fillRect(
+                editorTheme.gutterWidth, // Start after the gutter
+                totalRowsHeight, // Start drawing after the last drawn line
+                widthWindow - editorTheme.gutterWidth, // Width of the remaining area
+                (clip.y + clip.height) - totalRowsHeight // Height of the remaining area
+            )
+        }
+
+        // If lines were deleted, clear any remnants outside the visible area
+        if (textPane.rows() * fontMetrics.height < heightWindow) {
+            g2.color = editorTheme.canvasBackgroundColor
+            g2.fillRect(
+                editorTheme.gutterWidth, // Start after the gutter
+                textPane.rows() * fontMetrics.height, // Start clearing after the last line's height
+                widthWindow - editorTheme.gutterWidth, // Width of the editor
+                heightWindow - textPane.rows() * fontMetrics.height // Height of the remaining blank space
+            )
+        }
     }
+
 
     private fun paintLine(g2: Graphics2D, row: Int) {
         val lineText = textPane.getText(row)
