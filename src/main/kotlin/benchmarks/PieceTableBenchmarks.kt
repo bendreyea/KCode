@@ -1,11 +1,11 @@
-package benchmarks
+package org.editor.benchmarks
 
 import kotlinx.benchmark.*
 import org.editor.core.PieceTable
 import kotlin.random.Random
 
 @State(Scope.Thread)
-class PieceTableBenchmark {
+open class PieceTableBenchmark {
 
     private lateinit var pieceTable: PieceTable
     private lateinit var sampleData: ByteArray

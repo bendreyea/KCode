@@ -18,7 +18,6 @@ class KTextEditorController(
     private val repaintVisibleRegion: () -> Unit
 ) : KeyAdapter(), MouseListener, MouseMotionListener {
 
-    private val listeners = mutableListOf<(Int, Int) -> Unit>()
     // List of CaretListeners
     private val caretListeners = CopyOnWriteArrayList<CaretListener>()
 
@@ -144,7 +143,23 @@ class KTextEditorController(
                  if (hasSelection) {
                      deleteSelection()
                  } else {
-                     updateCaret(textPane.backspace(caret.row, caret.col))
+                     if (caret.col == 0) {
+                         if (textPane.getText(caret.row).isEmpty() && caret.row != textPane.rows() -1 ) {
+                             val newPos = textPane.delete(caret.row, caret.col)
+                             updateCaret(newPos)
+                         } else {
+                             println("Backspacing with col = 0")
+//                             val p = textPane.getTextContent()
+                             println("Backspacing with text ${caret.row} ${caret.col}")
+                             updateCaret(textPane.backspace(caret.row, caret.col))
+//                             val pafter = textPane.getTextContent()
+                             println("current text ${textPane.getText(caret.row)}")
+                         }
+
+                     } else {
+                         updateCaret(textPane.backspace(caret.row, caret.col))
+                     }
+
                      clearSelection()
                      repaintVisibleRegion()
                  }
@@ -311,20 +326,7 @@ class KTextEditorController(
             updateCaret(newCaret)
             clearSelection()
             repaintVisibleRegion()
-            notifyChange(prev.row, caret.row)
         }
-    }
-
-    fun addChangeListener(listener: (start: Int, end: Int) -> Unit) {
-        listeners.add(listener)
-    }
-
-    fun removeChangeListener(listener: (start: Int, end: Int) -> Unit) {
-        listeners.remove(listener)
-    }
-
-    private fun notifyChange(start: Int, end: Int) {
-        listeners.forEach { it.invoke(start, end) }
     }
 
     private fun deleteSelection() {

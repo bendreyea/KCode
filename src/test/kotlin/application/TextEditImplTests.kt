@@ -133,7 +133,6 @@ class TextEditImplTests {
         textEdit.insert(0, 0, multiLineText)
         val deleteRow = 0
         val startCol = 5
-        val len = 1
 
         // Act
         textEdit.delete(deleteRow, startCol, 1)
@@ -377,5 +376,48 @@ class TextEditImplTests {
         ret = te.replace(2, 3, -9, "*")
         assertEquals(0, ret.row, "Caret row should move to 0 after backward replacement.")
         assertEquals(3, ret.col, "Caret column should move to 3 after backward replacement.")
+    }
+
+    @Test
+    fun backspace_issues_1() {
+        // Arrange
+        val te = TextEditImpl(Document.create())
+        te.insert(0, 0, "1")
+        te.insert(0, 1, "\n")
+        te.insert(1, 0, "\n")
+        te.insert(2, 0, "2")
+        te.insert(2, 1, "3")
+
+
+        // Act
+        te.backspace(2, 0)
+        val a = te.getText(0)
+        val b = te.getText(1)
+
+        // Assert
+        assertEquals("1\n", a)
+        assertEquals("23", b)
+    }
+
+    @Test
+    fun backspace_issues_2() {
+        // Arrange
+        val te = TextEditImpl(Document.create())
+        te.insert(0, 0, "1")
+        te.insert(0, 1, "\n")
+        te.insert(1, 0, "\n")
+        te.insert(2, 0, "\n")
+        te.insert(3, 0, "2")
+        te.insert(3, 1, "3")
+
+
+        // Act
+        te.backspace(3, 0)
+        val a = te.getText(0)
+        val b = te.getText(2)
+
+        // Assert
+        assertEquals("1\n", a)
+        assertEquals("23", b)
     }
 }

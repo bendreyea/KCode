@@ -11,7 +11,7 @@ data class EditorTheme(
     val gutterTextColor: Color = Color.BLACK,
     val textColor: Color = Color.BLACK,
     val selectionColor: Color = Color(173, 216, 230, 128),
-    val caretColor: Color = Color.BLACK,
+    val caretColor: Color = Color.red,
     val tokenColors: Map<TokenType, Color> = mapOf(
         TokenType.KEYWORD    to Color(200, 123, 255),
         TokenType.IDENTIFIER to Color.BLACK,

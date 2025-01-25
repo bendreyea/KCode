@@ -21,6 +21,7 @@ dependencies {
 
 tasks.test {
     useJUnitPlatform()
+    jvmArgs = listOf("-XX:+EnableDynamicAgentLoading")
 }
 
 benchmark {
@@ -35,5 +36,11 @@ benchmark {
             this as kotlinx.benchmark.gradle.JvmBenchmarkTarget
             jmhVersion = "1.21"
         }
+    }
+}
+
+java {
+    toolchain {
+        languageVersion = JavaLanguageVersion.of(22)
     }
 }

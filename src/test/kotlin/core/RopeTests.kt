@@ -8,15 +8,15 @@ class RopeTests {
 
     @Test
     fun testBuildRopeFromString() {
-        val rope = Rope.buildRopeFromString("Hello, Rope!")
+        val rope = Rope.buildRopeFromByteArray("Hello, Rope!".toByteArray())
         assertEquals(12, rope.length())
         assertEquals("Hello, Rope!", rope.toString())
     }
 
     @Test
     fun testConcat() {
-        val rope1 = Rope.buildRopeFromString("Hello")
-        val rope2 = Rope.buildRopeFromString(", Rope!")
+        val rope1 = Rope.buildRopeFromByteArray("Hello".toByteArray())
+        val rope2 = Rope.buildRopeFromByteArray(", Rope!".toByteArray())
         val concatenated = rope1.concat(rope2)
 
         assertEquals(12, concatenated.length())
@@ -25,7 +25,7 @@ class RopeTests {
 
     @Test
     fun testSubstring() {
-        val rope = Rope.buildRopeFromString("Hello, Rope!")
+        val rope = Rope.buildRopeFromByteArray("Hello, Rope!".toByteArray())
         val sub = rope.substring(7, 11)  // "Rope"
 
         assertEquals(4, sub.length())
@@ -34,23 +34,23 @@ class RopeTests {
 
     @Test
     fun testInsert() {
-        val rope = Rope.buildRopeFromString("Hello, World!")
-        rope.insert(7, "Beautiful ")
+        val rope = Rope.buildRopeFromByteArray("Hello, World!".toByteArray())
+        rope.insert(7, "Beautiful ".toByteArray())
         assertEquals("Hello, Beautiful World!", rope.toString())
     }
 
     @Test
     fun testDelete() {
-        val rope = Rope.buildRopeFromString("Hello, Cruel World!")
+        val rope = Rope.buildRopeFromByteArray("Hello, Cruel World!".toByteArray())
         rope.delete(7, 13)  // remove "Cruel "
         assertEquals("Hello, World!", rope.toString())
     }
 
     @Test
     fun testComplexOperations() {
-        val rope1 = Rope.buildRopeFromString("Hello")
-        val rope2 = Rope.buildRopeFromString(", Rope!")
-        val rope3 = Rope.buildRopeFromString(" Another String")
+        val rope1 = Rope.buildRopeFromByteArray("Hello".toByteArray())
+        val rope2 = Rope.buildRopeFromByteArray(", Rope!".toByteArray())
+        val rope3 = Rope.buildRopeFromByteArray(" Another String".toByteArray())
 
         // Concat them
         val combined = rope1.concat(rope2).concat(rope3)
@@ -61,7 +61,7 @@ class RopeTests {
         assertEquals("Rope!", sub.toString())
 
         // Insert
-        combined.insert(0, ">>>")
+        combined.insert(0, ">>>".toByteArray())
         assertEquals(">>>Hello, Rope! Another String", combined.toString())
 
         // Delete

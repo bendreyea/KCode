@@ -219,5 +219,6 @@ Key Responsibilities:
         Ensures consistency between the visible text pane and the underlying text model.
 
 ### Resources
+ - https://stackoverflow.com/a/70500240
  - https://mockk.io/
  - https://discuss.kotlinlang.org/t/how-would-i-use-a-button-in-kotlin-using-swing/6730/2

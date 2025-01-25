@@ -127,6 +127,7 @@ class TextPaneContent(private val textEdit: TextEdit,
 
     fun insertChar(row: Int, col: Int, c: Char): Caret {
         val prevTotalRows = rows()
+        println("Inserting char $c at $row, $col")
         val cursor = textEdit.insert(row, col, c.toString())
         onTextChanged(row, cursor.row, prevTotalRows)
 
@@ -135,6 +136,7 @@ class TextPaneContent(private val textEdit: TextEdit,
 
     fun insert(row: Int, col: Int, text: String): Caret {
         val prevRows = rows()
+        println("Inserting char $text at $row, $col")
         val cursor = textEdit.insert(row, col, text)
         onTextChanged(row, cursor.row, prevRows)
 

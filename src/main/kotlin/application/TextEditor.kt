@@ -3,7 +3,6 @@ package org.editor.application
 import org.editor.application.Edit.*
 import java.nio.charset.Charset
 import java.util.*
-import kotlin.math.max
 import kotlin.math.min
 
 
@@ -83,7 +82,7 @@ class TextEditImpl(
         val toDelete = joinStrings(textRightByte(row, col, len))
         val edit = createDeleteEdit(row, col, toDelete)
         pushEdit(edit)
-        return edit.to()
+        return edit.min()
     }
 
     /**
@@ -93,7 +92,7 @@ class TextEditImpl(
         val toDelete = joinStrings(textRight(row, col, chCount))
         val edit = createDeleteEdit(row, col, toDelete)
         pushEdit(edit)
-        return edit.to()
+        return edit.min()
     }
 
     // endregion
@@ -115,7 +114,7 @@ class TextEditImpl(
         val toDelete = joinStrings(textLeftByte(row, col, len))
         val edit = createBackspaceEdit(row, col, toDelete)
         pushEdit(edit)
-        return edit.to()
+        return edit.min()
     }
 
     /**
@@ -125,7 +124,7 @@ class TextEditImpl(
         val toDelete = joinStrings(textLeft(row, col, chCount))
         val edit = createBackspaceEdit(row, col, toDelete)
         pushEdit(edit)
-        return edit.to()
+        return edit.min()  // so single-line backspaces move left by chCount
     }
 
     // endregion
@@ -154,12 +153,18 @@ class TextEditImpl(
             ins.to()
         } else {
             // Backspace then insert
+            // For negative len, backspace + then insert:
             val absLen = -len
             val delText = joinStrings(textLeftByte(row, col, absLen))
             val bs = createBackspaceEdit(row, col, delText)
-            val ins = createInsertEdit(bs.to().row, bs.to().col, text)
+
+            // Insert exactly where the backspace finished -> bs.min()
+            val ins = createInsertEdit(bs.min().row, bs.min().col, text)
+
             val compound = Edit.Cmp(listOf(bs, ins))
             pushEdit(compound)
+
+            // Return ins.to(), which should be (bs.min().row, bs.min().col + text.length)
             ins.to()
         }
     }
@@ -216,7 +221,14 @@ class TextEditImpl(
         if (editQueue.isNotEmpty() && dryBuffer.isEmpty()) {
             applyEditsInMemory()
         }
-        return dryBuffer[row] ?: doc.getText(row).toString()
+        return dryBuffer[row] ?: getDocText(row)
+    }
+
+    private fun getDocText(row: Int): String {
+        if (doc.rawSize() == 0L)
+            return ""
+
+        return doc.getText(row).toString()
     }
 
     /**
@@ -326,21 +338,24 @@ class TextEditImpl(
      * adjusting the new cursor position as needed.
      */
     private fun createBackspaceEdit(row: Int, col: Int, text: String): Edit.Delete {
+        // Suppose text = "\n" if we’re removing a newline in the previous row
         val newRow = row - countRowBreak(text)
         val newCol = if (row == newRow) {
-            // Single-line backspace
+            // Single-line backspace: shift col left by text.length
             col - text.length
         } else {
-            // Multi-line backspace: figure out how to position the cursor at the end of the line above
+            // Multi-line backspace: removing a newline from a previous row
+            // 'index' is first newline in text
             val index = text.indexOf('\n')
             val startOffset = if (index >= 0) index + 1 else text.length
             (getText(newRow).length - startOffset).coerceAtLeast(0)
         }
 
+        // The *start* of deletion is (newRow,newCol); the *end* is the current (row,col)
         return Edit.Delete(
-            Caret(row, col),
             Caret(newRow, newCol),
-            text,
+            Caret(row, col),
+            text
         )
     }
 
@@ -423,7 +438,10 @@ class TextEditImpl(
     private fun applyToDocument(edit: Edit) {
         when (edit) {
             is Edit.Insert -> doc.insert(edit.min().row, edit.min().col, edit.text())
-            is Edit.Delete -> doc.delete(edit.min().row, edit.min().col, edit.text())
+            is Edit.Delete -> {
+                println("Deleting '${edit.text()}' at row=${edit.min().row}, col=${edit.min().col}")
+                doc.delete(edit.min().row, edit.min().col, edit.text())
+            }
             is Edit.Cmp -> edit.edits().forEach { applyToDocument(it) }
             is Edit.ConcreteEdit -> {
                 // If you have more concrete subtypes in the future, handle them here
@@ -511,29 +529,35 @@ class TextEditImpl(
         var r = row
         var c = col
 
-        while (r >= 0) {
+        while (r >= 0 && remainder > 0) {
             val line = getText(r)
             val text = if (r == row) {
                 line.substring(0, c.coerceAtMost(line.length))
             } else {
                 line
             }
-            val len = Texts.chLength(text)
 
+            val len = Texts.chLength(text)
             if (remainder - len <= 0) {
                 // The needed substring is within this line
                 ret.addFirst(Texts.right(text, remainder))
                 break
             }
 
-            // Otherwise, add the whole line and move up
+            // Otherwise, add the whole line and handle the newline
             ret.addFirst(text)
             remainder -= len
             r--
-            c = if (r == row) max(0, c) else line.length
+
+            if (r >= 0) {
+                // Add the newline character from the previous line
+                ret.addFirst("\n")
+                remainder -= 1
+            }
         }
         return ret
     }
+
 
     /**
      * Byte-based version of [textRight].
