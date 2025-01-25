@@ -28,4 +28,6 @@ interface TextBuffer {
      * @return the length of bytes
      */
     fun length(): Long
+
+    fun bytes(): ByteArray
 }

@@ -164,27 +164,33 @@ class RowIndex private constructor(private val cacheInterval: Int) {
         // same as Java
         cacheLength = row / cacheInterval
 
-        // if it fits fully in the row
+        // If it fits fully in the row (i.e., within rowLengths[row]) => easy
         if ((rowLengths[row] - col) > len) {
             rowLengths[row] -= len
         } else {
+            // We do a “merge” if we remove the end of row + possibly more rows
             var remain = len - (rowLengths[row] - col)
             rowLengths[row] = col
+
             var lines = 0
             do {
-                if ((row + lines + 1) >= length) break
+                if ((row + lines + 1) >= length)
+                    break
+
                 remain -= rowLengths[row + ++lines]
             } while (remain >= 0)
 
-            // merge leftover back
+            // This merges leftover into row
             rowLengths[row] += (-remain)
 
+            // Remove the now-consumed rows
             if (lines > 0) {
                 System.arraycopy(
                     rowLengths, row + 1 + lines,
                     rowLengths, row + 1,
                     length - (row + 1 + lines)
                 )
+
                 length -= lines
             }
         }

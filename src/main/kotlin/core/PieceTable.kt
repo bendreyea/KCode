@@ -97,19 +97,15 @@ class PieceTable private constructor(
         }
 
         val endPos = pos + len - 1
-
-        // Get all pieces in [pos..endPos]
         val rangePoints = range(pos, endPos)
-        if (rangePoints.isEmpty())
-            return
+        if (rangePoints.isEmpty()) return
 
         val first = rangePoints.first()
         val last  = rangePoints.last()
-
-        // Remove the pieces in one shot
-        // subList(...).clear() reduces array shifting
         val startIdx = first.tableIndex
         val endIdx   = last.tableIndex
+
+        // Remove the pieces in one shot
         pieces.subList(startIdx, endIdx + 1).clear()
 
         // Remove indices for each piece in that range
@@ -117,33 +113,36 @@ class PieceTable private constructor(
             indices.remove(pt.position)
         }
 
-        // Possibly re-insert partial leftover from last piece
-        // If endPos < lastPieceEnd, it means we cut that piece partway
+        // Possibly re-insert partial leftover from the "last" piece
         val lastPieceEndPos = last.endPosition()
         if (endPos < lastPieceEndPos - 1) {
-            // we partially consumed the piece
             val cutPos = pos + len - last.position
-            val (_, right) = last.piece.split(cutPos) // left is consumed
+            val (_, right) = last.piece.split(cutPos)
             pieces.add(startIdx, right)
-            updateIndex(startIdx)
         }
 
-        // Possibly re-insert partial leftover from first piece
+        // Possibly re-insert partial leftover from the "first" piece
         if (pos > first.position) {
-            // we partially consumed the piece
             val (left, _) = first.piece.split(pos - first.position)
             pieces.add(startIdx, left)
-            updateIndex(startIdx)
         }
+
+        // Important!!!!!: re-index everything from startIdx onward
+        updateIndex(startIdx)
 
         totalLength -= len
     }
 
+
     override fun get(pos: Long, len: Int): ByteArray {
-        if (len <= 0) return ByteArray(0)
+        if (len <= 0)
+            return ByteArray(0)
+
+        val bytes = bytes()
         val endPos = pos + len - 1
         val rangePoints = range(pos, endPos)
-        if (rangePoints.isEmpty()) return ByteArray(0)
+        if (rangePoints.isEmpty())
+            return ByteArray(0)
 
         val result = ByteArray(len)
         var remains = len
@@ -160,8 +159,10 @@ class PieceTable private constructor(
             remains -= toCopy
             destPos += toCopy
             offsetInPiece = 0
-            if (remains <= 0) break
+            if (remains <= 0)
+                break
         }
+
         return result
     }
 
@@ -170,7 +171,7 @@ class PieceTable private constructor(
     /**
      * Returns all the bytes in the PieceTable.
      */
-    fun bytes(): ByteArray {
+    override fun bytes(): ByteArray {
         val all = ByteArrayBuffer.create()
         for (piece in pieces) {
             all.append(piece.bytes())

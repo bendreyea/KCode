@@ -18,7 +18,6 @@ class KTextEditorController(
     private val repaintVisibleRegion: () -> Unit
 ) : KeyAdapter(), MouseListener, MouseMotionListener {
 
-    private val listeners = mutableListOf<(Int, Int) -> Unit>()
     // List of CaretListeners
     private val caretListeners = CopyOnWriteArrayList<CaretListener>()
 
@@ -141,10 +140,30 @@ class KTextEditorController(
             }
 
              KeyEvent.VK_BACK_SPACE -> {
+                 // TODO: have a huge bug with backspace method
                  if (hasSelection) {
                      deleteSelection()
                  } else {
-                     updateCaret(textPane.backspace(caret.row, caret.col))
+                     if (caret.col == 0) {
+                         // If the current line is empty and not the last line, delete the line
+                         if (textPane.getText(caret.row).isEmpty() && caret.row < textPane.rows() - 1) {
+                             val newPos = textPane.delete(caret.row, caret.col)
+                             updateCaret(newPos)
+                         } else if (caret.row > 0) {
+                             // Move caret to the end of the previous line
+                             val prevRow = caret.row - 1
+                             val prevCol = textPane.getText(prevRow).length
+                             // Optionally, join lines if needed
+                             val newPos = textPane.delete(prevRow, prevCol)
+                             updateCaret(newPos)
+                         }
+                     } else {
+                         // Delete the character before the caret
+                         val newCol = caret.col - 1
+                         textPane.delete(caret.row, newCol)
+                         updateCaret(caret.withCol(newCol))
+                     }
+
                      clearSelection()
                      repaintVisibleRegion()
                  }
@@ -192,9 +211,10 @@ class KTextEditorController(
     private fun handleMousePressed(e: MouseEvent) {
         isDragging = true
         val prevCursor = moveMouseCaret(e)
+        val (start, end) = orderedCursors(selectionStart ?: prevCursor, selectionEnd ?: caret)
         selectionStart = caret
         selectionEnd = null
-        repaintCallback(prevCursor, caret)
+        repaintCallback(start, end)
     }
 
     private fun handleMouseDragged(e: MouseEvent) {
@@ -225,6 +245,7 @@ class KTextEditorController(
             if (mouseX < widthSoFar + charW / 2) {
                 return index
             }
+
             widthSoFar += charW
         }
 
@@ -306,25 +327,11 @@ class KTextEditorController(
             if (hasSelection) {
                 deleteSelection()
             }
-            val prev = caret.copy()
             val newCaret = textPane.insert(caret.row, caret.col, text)
             updateCaret(newCaret)
             clearSelection()
             repaintVisibleRegion()
-            notifyChange(prev.row, caret.row)
         }
-    }
-
-    fun addChangeListener(listener: (start: Int, end: Int) -> Unit) {
-        listeners.add(listener)
-    }
-
-    fun removeChangeListener(listener: (start: Int, end: Int) -> Unit) {
-        listeners.remove(listener)
-    }
-
-    private fun notifyChange(start: Int, end: Int) {
-        listeners.forEach { it.invoke(start, end) }
     }
 
     private fun deleteSelection() {
@@ -336,6 +343,7 @@ class KTextEditorController(
         textPane.replace(start.row, start.col, lengthToRemove, "")
         updateCaret(start)
         clearSelection()
+        repaintCallback(start, end)
         repaintVisibleRegion()
     }
 

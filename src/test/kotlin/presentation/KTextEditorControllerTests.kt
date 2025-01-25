@@ -140,4 +140,111 @@ class KTextEditorControllerTest {
         assertEquals(controller.caret, controller.selectionStart)
     }
 
+    @Test
+    fun keyPressed_handleDeleteSelection() {
+        // Arrange
+        controller.selectionStart = Caret(0, 0)
+        controller.selectionEnd = Caret(0, 5)
+        every { textPane.getText(Caret(0, 0), Caret(0, 5)) } returns "Hello"
+        every { textPane.replace(any(), any(), any(), any()) } answers { Caret(0, 0) }
+
+        val keyEvent = KeyEvent(
+            JPanel(),
+            KeyEvent.KEY_PRESSED,
+            System.currentTimeMillis(),
+            0,
+            KeyEvent.VK_DELETE,
+            KeyEvent.CHAR_UNDEFINED
+        )
+
+        // Act
+        controller.keyPressed(keyEvent)
+
+        // Assert
+        assertEquals(Caret(0, 0), controller.caret)
+        verify { textPane.replace(0, 0, 5, "") }
+    }
+
+    @Test
+    fun mouseDragged_updateSelection() {
+        // Arrange
+        controller.selectionStart = Caret(0, 0)
+        val mouseEvent = MouseEvent(
+            JPanel(),
+            MouseEvent.MOUSE_DRAGGED,
+            System.currentTimeMillis(),
+            0,
+            100,
+            20,
+            1,
+            false
+        )
+
+        every { textPane.getText(0) } returns "Sample line"
+        every { textPane.rows() } returns 10
+
+        // Act
+        controller.mouseDragged(mouseEvent)
+
+        // Assert
+        assertEquals(controller.selectionStart, Caret(0, 0))
+        assertEquals(controller.selectionEnd, controller.caret)
+    }
+
+    @Test
+    fun keyTyped_insertCharacter() {
+        // Arrange
+        controller.caret = Caret(0, 5)
+        every { textPane.insert(0, 5, "a") } returns Caret(0, 6)
+
+        val keyEvent = KeyEvent(
+            JPanel(),
+            KeyEvent.KEY_TYPED,
+            System.currentTimeMillis(),
+            0,
+            0,
+            'a'
+        )
+
+        // Act
+        controller.keyTyped(keyEvent)
+
+        // Assert
+        assertEquals(Caret(0, 6), controller.caret)
+        verify { textPane.insert(0, 5, "a") }
+    }
+
+    @Test
+    fun keyPressed_pageDownMovesCaret() {
+        // Arrange
+        val keyEvent = KeyEvent(
+            JPanel(),
+            KeyEvent.KEY_PRESSED,
+            System.currentTimeMillis(),
+            0,
+            KeyEvent.VK_PAGE_DOWN,
+            KeyEvent.CHAR_UNDEFINED
+        )
+        every { textPane.rows() } returns 20
+
+        // Act
+        controller.keyPressed(keyEvent)
+
+        // Assert
+        assertEquals(Caret(5, 0), controller.caret)
+    }
+
+    @Test
+    fun getSelectedText_returnsSelectedText() {
+        // Arrange
+        controller.selectionStart = Caret(0, 0)
+        controller.selectionEnd = Caret(0, 5)
+        every { textPane.getText(Caret(0, 0), Caret(0, 5)) } returns "Hello"
+
+        // Act
+        val selectedText = controller.getSelectedText()
+
+        // Assert
+        assertEquals("Hello", selectedText)
+    }
 }

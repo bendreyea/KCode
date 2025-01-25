@@ -52,12 +52,40 @@ class DocumentImpl private constructor(
     }
 
     override fun delete(row: Int, col: Int, cs: CharSequence) {
-        val byteCol = getText(row).substring(0, col).toByteArray(charset).size
-        delete(row, byteCol, cs.toString().toByteArray(charset).size)
+        // Convert the text to delete into bytes
+        val bytes = cs.toString().toByteArray(charset)
+        if (bytes.isEmpty())
+            return
+
+        // 1) Special case: Deleting exactly "\n" at the *start* of row>0
+        //    => The actual newline physically belongs to the end of row-1
+        if (bytes.size == 1 &&
+            bytes[0] == '\n'.code.toByte() &&
+            row > 0 &&
+            col == 0
+        ) {
+            // The newline is row-1’s last byte
+            val rowLens = index.rowLengths() // current snapshot of row lengths
+            val prevRowLen = rowLens[row - 1]
+            require(prevRowLen > 0) {
+                "Previous row length must be > 0 if there's a newline. rowLens[row-1]=$prevRowLen"
+            }
+            // Delete that single byte from row-1
+            val bytePos = index.serial(row - 1, prevRowLen - 1)
+            pt.delete(bytePos, 1)
+            index.delete(row - 1, prevRowLen - 1, 1)
+        }
+        else {
+            val prefix = getText(row).substring(0, col)
+            val byteCol = prefix.toByteArray(charset).size
+
+            val bytePos = index.serial(row, byteCol)
+            pt.delete(bytePos, bytes.size)
+            index.delete(row, byteCol, bytes.size)
+        }
     }
 
     override fun getText(row: Int): CharSequence {
-        val r = get(row)
         return String(get(row), charset)
     }
 

@@ -70,4 +70,25 @@ class PieceTests {
         pieceTable.insert(0, "Hello".toByteArray())
         assertEquals(5, pieceTable.length())
     }
+
+    @Test
+    fun last_row_issues_1() {
+        // Arrange
+        val pieceTable = PieceTable.create()
+        pieceTable.insert(0, "1".toByteArray())
+        pieceTable.insert(1, "\n".toByteArray())
+        pieceTable.insert(2, "\n".toByteArray())
+        pieceTable.insert(3, "2".toByteArray())
+        pieceTable.insert(4, "3".toByteArray())
+
+
+        // Act
+        pieceTable.delete(1, 1)
+        val a = pieceTable.get(0,2)
+        val b = pieceTable.get(2, 2)
+
+        // Assert
+        assertEquals("1\n", String(a))
+        assertEquals("23", String(b))
+    }
 }

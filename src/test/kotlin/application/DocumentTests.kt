@@ -382,4 +382,30 @@ class DocumentTests {
         // Assert
         assertEquals(NewLine.platform, rowEnding, "Row ending should match the platform-specific newline.")
     }
+
+    @Test
+    fun `deleting newline at start of row merges lines`() {
+        // Arrange
+        val doc = DocumentImpl.create()
+
+        // Insert "A\n" => row0
+        doc.insert(0, 0, "A")
+        doc.insert(0, 1, "\n")
+
+        // Insert "B" => row1
+        doc.insert(1, 0, "B")
+        // So conceptually we have:
+        // row0: "A\n"
+        // row1: "B"
+
+        // Act
+        // Remove the newline from the perspective of row1,col=0
+        // This *should* merge row1 ("B") up into row0, resulting in just "AB".
+        doc.delete(1, 0, "\n")
+
+        // Assert
+        // We expect row0 = "AB", and only 1 row in the document
+        assertEquals("AB", doc.getText(0), "Row 0 should be 'AB' after merging")
+        assertEquals(1, doc.rows(), "Document should have merged into a single row")
+    }
 }

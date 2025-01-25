@@ -1,17 +1,21 @@
 package org.editor.presentation.components.textpane
 
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import org.editor.application.Caret
+import org.editor.presentation.components.SwingDispatchers
 import java.awt.*
 import java.awt.event.MouseAdapter
 import java.awt.event.MouseEvent
 import javax.swing.JPanel
-import javax.swing.SwingUtilities
 import kotlin.math.max
 import kotlin.math.min
 
 class KTextPane(
     val textPane: TextPaneContent,
-    private val theme: EditorTheme
+    private val theme: EditorTheme,
+    private val mainScope: CoroutineScope
 ) : JPanel() {
 
     // Lazy font metrics
@@ -94,10 +98,10 @@ class KTextPane(
 
         // Compute the actual on-screen rectangle that changed
         val visibleStartRow = max(0, controller.scrollY / lineHeight)
-        val visibleEndRow = min(textPane.rows(), (controller.scrollY + viewportHeight) / lineHeight)
+        val visibleEndRow = (controller.scrollY + viewportHeight) / lineHeight
 
         val repaintStartRow = max(startRow, visibleStartRow)
-        val repaintEndRow = min(endRow, visibleEndRow)
+        val repaintEndRow = max(endRow, visibleEndRow)
 
         if (repaintStartRow <= repaintEndRow) {
             val y = repaintStartRow * lineHeight - controller.scrollY
@@ -117,7 +121,6 @@ class KTextPane(
         val repaintStartY = visibleStartRow * lineHeight - scrollY
         val repaintEndY = (visibleEndRow + 1) * lineHeight - scrollY
         val repaintHeight = repaintEndY - repaintStartY
-        println("repaint visible region: $visibleStartRow, $visibleEndRow")
         scheduleRepaint(Rectangle(0, repaintStartY, width, repaintHeight))
     }
 
@@ -148,12 +151,15 @@ class KTextPane(
 
         if (!repaintPending) {
             repaintPending = true
-            SwingUtilities.invokeLater {
-                dirtyRegion?.let { region ->
-                    repaint(region.x, region.y, region.width, region.height)
+            mainScope.launch {
+                withContext(SwingDispatchers.Swing) {
+                    dirtyRegion?.let { region ->
+                        repaint(region.x, region.y, region.width, region.height)
+                    }
+                    dirtyRegion = null
+                    repaintPending = false
+
                 }
-                dirtyRegion = null
-                repaintPending = false
             }
         }
     }
@@ -188,11 +194,13 @@ class KTextPane(
         // Reset caret & selection
         controller.clearSelection()
         // Update scroll
-        SwingUtilities.invokeLater {
-            scrollX = 0
-            scrollY = 0
-            scheduleFullRepaint()
-            revalidate()
+        mainScope.launch {
+            withContext(SwingDispatchers.Swing) {
+                scrollX = 0
+                scrollY = 0
+                scheduleFullRepaint()
+                revalidate()
+            }
         }
     }
 }
