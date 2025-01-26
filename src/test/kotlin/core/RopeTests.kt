@@ -1,7 +1,7 @@
 package core
 
 import org.editor.core.Rope
-import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.Test
 
 class RopeTests {
@@ -13,59 +13,88 @@ class RopeTests {
         assertEquals("Hello, Rope!", rope.toString())
     }
 
-    @Test
-    fun testConcat() {
-        val rope1 = Rope.buildRopeFromByteArray("Hello".toByteArray())
-        val rope2 = Rope.buildRopeFromByteArray(", Rope!".toByteArray())
-        val concatenated = rope1.concat(rope2)
 
-        assertEquals(12, concatenated.length())
-        assertEquals("Hello, Rope!", concatenated.toString())
+    @Test
+    fun insert_withValidPosition_insertsPieceCorrectly() {
+        val rope = Rope.create()
+        rope.insert(0, "Hello".toByteArray())
+        assertArrayEquals("Hello".toByteArray(), rope.get(0, 5))
     }
 
     @Test
-    fun testSubstring() {
-        val rope = Rope.buildRopeFromByteArray("Hello, Rope!".toByteArray())
-        val sub = rope.substring(7, 11)  // "Rope"
-
-        assertEquals(4, sub.length())
-        assertEquals("Rope", sub.toString())
+    fun insert_withInvalidPosition_throwsException() {
+        val rope = Rope.create()
+        assertThrows(IllegalArgumentException::class.java) {
+            rope.insert(-1, "Hello".toByteArray())
+        }
     }
 
     @Test
-    fun testInsert() {
-        val rope = Rope.buildRopeFromByteArray("Hello, World!".toByteArray())
-        rope.insert(7, "Beautiful ".toByteArray())
-        assertEquals("Hello, Beautiful World!", rope.toString())
+    fun delete_() {
+        val rope = Rope.buildRopeFromByteArray("".toByteArray())
+        rope.insert(0, "a large text".toByteArray())
+        rope.insert(8, "span of ".toByteArray())
+
+        rope.delete(1, 6)
+
+        assertEquals("a span of text", rope.toString())
     }
 
     @Test
-    fun testDelete() {
-        val rope = Rope.buildRopeFromByteArray("Hello, Cruel World!".toByteArray())
-        rope.delete(7, 13)  // remove "Cruel "
-        assertEquals("Hello, World!", rope.toString())
+    fun delete_withValidRange_deletesPieceCorrectly() {
+        val rope = Rope.create()
+        rope.insert(0, "Hello World".toByteArray())
+        rope.delete(5, 6)
+        assertArrayEquals("Hello".toByteArray(), rope.get(0, 5))
     }
 
     @Test
-    fun testComplexOperations() {
-        val rope1 = Rope.buildRopeFromByteArray("Hello".toByteArray())
-        val rope2 = Rope.buildRopeFromByteArray(", Rope!".toByteArray())
-        val rope3 = Rope.buildRopeFromByteArray(" Another String".toByteArray())
-
-        // Concat them
-        val combined = rope1.concat(rope2).concat(rope3)
-        assertEquals("Hello, Rope! Another String", combined.toString())
-
-        // Substring
-        val sub = combined.substring(7, 12) // "Rope!"
-        assertEquals("Rope!", sub.toString())
-
-        // Insert
-        combined.insert(0, ">>>".toByteArray())
-        assertEquals(">>>Hello, Rope! Another String", combined.toString())
-
-        // Delete
-        combined.delete(3, 8) // remove "Hello"
-        assertEquals(">>>, Rope! Another String", combined.toString())
+    fun delete_withMultipleLines_deletesCorrectly() {
+        val rope = Rope.create()
+        rope.insert(0,  "Hello\nWorld".toByteArray())
+        rope.delete(5,  1)
+        assertArrayEquals("HelloWorld".toByteArray(), rope.get(0, 10))
     }
+
+    @Test
+    fun get_withValidRange_returnsCorrectPiece() {
+        val rope = Rope.create()
+        rope.insert(0, "Hello World".toByteArray())
+        assertArrayEquals("World".toByteArray(), rope.get(6, 5))
+    }
+
+    @Test
+    fun get_withInvalidRange_returnsEmptyArray() {
+        val rope = Rope.create()
+        assertArrayEquals(ByteArray(0), rope.get(0, 5))
+    }
+
+    @Test
+    fun length_returnsCorrectLength() {
+        val rope = Rope.create()
+        rope.insert(0, "Hello".toByteArray())
+        kotlin.test.assertEquals(5, rope.length())
+    }
+
+    @Test
+    fun last_row_issues_1() {
+        // Arrange
+        val rope = Rope.create()
+        rope.insert(0, "1".toByteArray())
+        rope.insert(1, "\n".toByteArray())
+        rope.insert(2, "\n".toByteArray())
+        rope.insert(3, "2".toByteArray())
+        rope.insert(4, "3".toByteArray())
+
+
+        // Act
+        rope.delete(1, 1)
+        val a = rope.get(0,2)
+        val b = rope.get(2, 2)
+
+        // Assert
+        assertArrayEquals("1\n".toByteArray(), a)
+        assertArrayEquals("23".toByteArray(), b)
+    }
+
 }
