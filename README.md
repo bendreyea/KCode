@@ -129,7 +129,7 @@ Piece Table:
 |                  |      |                  |      |  (Hierarchical AST)|      |                  |  
 +------------------+      +------------------+      +--------------------+      +------------------+
 Input                     Core Engine                   Output
-```plaintext
+```
 
 ### Key steps:
 1. Parser reads the source code.
@@ -179,7 +179,8 @@ Input                     Core Engine                   Output
 |                    | ---> |  rendering, input  | ---> |  caret operations,    |
 |                    |      |  handling          |      |  and editing          |
 +--------------------+      +--------------------+      +-----------------------+
-```plaintext
+```
+
 MainFrame: Acts as the main application window, providing buttons, layout management, and user interaction handling.
 KTextPane: Custom text editing component for displaying and interacting with text.
 TextPaneContent: Back-end interface managing text data, highlighting, and synchronization with editing operations.
