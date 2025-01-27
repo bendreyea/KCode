@@ -1,11 +1,13 @@
 ## Text Editor
 ### Design
 
-+------------------+      +------------------+      +--------------------+      
-|   Text, cursor   | ---> | Operations:      | ---> |  Underlying Data   |      
-|                  |      | Insert, Delete,  |      |  Piece Table,      |
-|                  | ---> | Modify           | ---> |  Rope              |
-+------------------+      +------------------+      +--------------------+
+```plaintext
++---------------+      +------------------+      +--------------------+
+| Text, Cursor  | ---> |   Operations:    | ---> |  Underlying Data   |
+|               |      |   Insert, Delete,|      |  Piece Table,      |
+|               |      |   Modify         |      |  Rope              |
++---------------+      +------------------+      +--------------------+
+```
 
 Text & Cursor: Represents user input or interactions with the editor, including typing, navigation, and selection.
 Operations: Encapsulates commands such as Insert, Delete, and Modify.
@@ -121,11 +123,13 @@ Piece Table:
 ## Code highlighting
 
 ### Syntax Analysis
+```plaintext
 +------------------+      +------------------+      +--------------------+      +------------------+
 |   Source Code    | ---> |   Parser         | ---> |  Syntax Tree       | ---> |  Apply styles    |
 |                  |      |                  |      |  (Hierarchical AST)|      |                  |  
 +------------------+      +------------------+      +--------------------+      +------------------+
 Input                     Core Engine                   Output
+```plaintext
 
 ### Key steps:
 1. Parser reads the source code.
@@ -167,13 +171,15 @@ Input                     Core Engine                   Output
 
 ## UI Components
 ### Design
+
+```plaintext
 +--------------------+      +--------------------+      +-----------------------+
 |  MainFrame         | ---> |  KTextPane         | ---> | TextPaneContent       |
 |  JFrame-based GUI  |      |  JPanel with text  |      |  Manages text data,   |
 |                    | ---> |  rendering, input  | ---> |  caret operations,    |
 |                    |      |  handling          |      |  and editing          |
 +--------------------+      +--------------------+      +-----------------------+
-
+```plaintext
 MainFrame: Acts as the main application window, providing buttons, layout management, and user interaction handling.
 KTextPane: Custom text editing component for displaying and interacting with text.
 TextPaneContent: Back-end interface managing text data, highlighting, and synchronization with editing operations.
