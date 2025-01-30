@@ -1,6 +1,7 @@
 package org.editor.application
 
 import org.editor.core.PieceTable
+import org.editor.core.Rope
 import org.editor.core.TextBuffer
 import java.nio.charset.Charset
 
@@ -44,6 +45,8 @@ class DocumentImpl private constructor(
          * @return A new [DocumentImpl] instance.
          */
         fun create(): DocumentImpl = DocumentImpl(PieceTable.create())
+
+        fun createWithRope(): DocumentImpl = DocumentImpl(Rope.create());
     }
 
     override fun insert(row: Int, col: Int, cs: CharSequence) {

@@ -3,6 +3,7 @@ package org.editor.syntax
 import org.editor.syntax.intervalTree.IntervalTree
 import java.util.*
 import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.atomic.AtomicInteger
 
 /**
  * Represents the parser state at the start of a chunk:
@@ -34,7 +35,7 @@ class SyntaxHighlighter {
     private val lineIntervalTrees = ConcurrentHashMap<Int, IntervalTree<HighlightInterval>>()
 
     // For skipping re-parse if line text + bracket/lexer state is unchanged.
-    private val lineHashes: MutableMap<Int, Int> = ConcurrentHashMap()
+    private val lineHashes = ConcurrentHashMap<Int, AtomicInteger>()
     private val lineEndStates = ConcurrentHashMap<Int, LexerState>()
     private val carryStackPerLine = ConcurrentHashMap<Int, List<BracketInfo>>()
 
@@ -195,7 +196,7 @@ class SyntaxHighlighter {
     ): Pair<LexerState, ArrayDeque<BracketInfo>> {
 
         var currentState = startLexerState
-        val bracketStack = startBracketStack
+        val bracketStack = ArrayDeque(startBracketStack)
         val lastLineInChunk = chunkStartLine + chunkSize - 1
         val totalRows = getTotalRows()
 
@@ -229,13 +230,13 @@ class SyntaxHighlighter {
     ): Pair<LexerState, ArrayDeque<BracketInfo>> {
 
         val text = getLineText(row)
-        val newHash = text.hashCode()
-        val oldHash = lineHashes[row]
+        val newHash = AtomicInteger(text.hashCode())
+        val oldHash = lineHashes[row]?.get()
         val oldEndState = lineEndStates[row]
         val oldCarryStack = carryStackPerLine[row]
 
         // Check if we can skip
-        if (oldHash == newHash &&
+        if (oldHash == newHash.get() &&
             oldEndState != null &&
             oldCarryStack != null &&
             LexerStateCompatible(incomingState, oldEndState) &&

@@ -1,8 +1,11 @@
 package org.editor.presentation.components.mainframe
 
-import kotlinx.coroutines.*
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.withContext
+import org.editor.ApplicationScope
 import org.editor.application.Caret
 import org.editor.application.Document
 import org.editor.application.TextEditImpl
@@ -17,7 +20,6 @@ import java.awt.Dimension
 import java.awt.FlowLayout
 import java.io.File
 import javax.swing.*
-import kotlinx.coroutines.Dispatchers as CoroutinesDispatchers
 
 /**
  * The main frame of the application.
@@ -25,12 +27,12 @@ import kotlinx.coroutines.Dispatchers as CoroutinesDispatchers
 class MainFrame : JFrame("KCode") {
 
     // Single-threaded context for file operations to serialize them
-    private val fileOperationDispatcher = newSingleThreadContext("FileOperationThread")
-    private val mainScope = CoroutineScope(SupervisorJob() + CoroutinesDispatchers.Default)
+    private val fileDispatcher = Dispatchers.IO.limitedParallelism(1)
+
 
     private val theme = EditorTheme()
-    private val textPaneContent = TextPaneContent(TextEditImpl(Document.create()), mainScope)
-    private val textPane = KTextPane(textPaneContent, theme, mainScope)
+    private val textPaneContent = TextPaneContent(TextEditImpl(Document.create()))
+    private val textPane = KTextPane(textPaneContent, theme)
     private val openButton = JButton("Open File")
     private val saveButton = JButton("Save File")
     private val cursorPositionLabel = JLabel("Line: 1, Column: 1")
@@ -64,7 +66,7 @@ class MainFrame : JFrame("KCode") {
         })
 
         textPaneContent.addChangeListener { minLine, maxLine ->
-            mainScope.launch {
+            ApplicationScope.scope.launch {
                 withContext(SwingDispatchers.Swing) {
                     textPane.scheduleFullRepaint()
                 }
@@ -72,7 +74,7 @@ class MainFrame : JFrame("KCode") {
         }
 
         // Ensure UI updates on EDT
-        mainScope.launch {
+        ApplicationScope.scope.launch {
             withContext(SwingDispatchers.Swing) {
                 textPane.requestFocusInWindow()
             }
@@ -84,7 +86,7 @@ class MainFrame : JFrame("KCode") {
         val result = fileChooser.showOpenDialog(this)
         if (result == JFileChooser.APPROVE_OPTION) {
             val file = fileChooser.selectedFile
-            mainScope.launch {
+            ApplicationScope.scope.launch {
                 fileOperationMutex.withLock {
                     try {
                         val fileText = readFileContent(file)
@@ -113,7 +115,7 @@ class MainFrame : JFrame("KCode") {
         val result = fileChooser.showSaveDialog(this)
         if (result == JFileChooser.APPROVE_OPTION) {
             val file = fileChooser.selectedFile
-            mainScope.launch {
+            ApplicationScope.scope.launch {
                 fileOperationMutex.withLock {
                     try {
                         val content = withContext(SwingDispatchers.Swing) {
@@ -143,18 +145,17 @@ class MainFrame : JFrame("KCode") {
         }
     }
 
-    private suspend fun readFileContent(file: File): String = withContext(fileOperationDispatcher) {
+    private suspend fun readFileContent(file: File): String = withContext(fileDispatcher) {
         file.readText()
     }
 
-    private suspend fun writeFileContent(file: File, content: String) = withContext(fileOperationDispatcher) {
+    private suspend fun writeFileContent(file: File, content: String) = withContext(fileDispatcher) {
         file.writeText(content)
     }
 
     override fun dispose() {
         super.dispose()
-        mainScope.cancel()
-        fileOperationDispatcher.close() // Clean up the dispatcher
+        ApplicationScope.dispose()
     }
 }
 

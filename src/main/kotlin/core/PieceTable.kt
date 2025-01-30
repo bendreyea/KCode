@@ -1,8 +1,5 @@
 package org.editor.core
 
-import java.io.OutputStream
-import java.util.*
-import kotlin.collections.set
 import kotlin.math.min
 
 /**
@@ -19,151 +16,174 @@ class PieceTable private constructor(
 
     /**
      * The ordered list of all pieces. Each piece knows:
-     *   - which buffer (ChannelBuffer or ByteArrayBuffer)
      *   - the start offset in that buffer
      *   - the length of the piece
      */
     private val pieces = mutableListOf<Piece>()
 
-    /**
-     * A TreeMap mapping `piecePosition -> PiecePoint`.
-     * Instead of clearing the entire tail, we'll do partial updates.
-     */
-    private val indices = TreeMap<Long, PiecePoint>()
+
+    // Tracks cumulative lengths
+    private val prefixSums = mutableListOf(0L)
+
 
     /** Total byte length of this piece table. */
     private var totalLength: Long = 0
 
     init {
-        if (initial != null) {
-            pieces.add(initial)
-            totalLength = initial.length
-            // Index just that initial piece
-            indices[0L] = PiecePoint(0L, 0, initial)
+        initial?.let {
+            pieces.add(it)
+            prefixSums.add(it.length)
+            totalLength = it.length
         }
     }
 
     override fun insert(pos: Long, bytes: ByteArray?) {
         if (bytes == null || bytes.isEmpty()) return
-        require(pos in 0..totalLength) {
-            "Insertion pos[$pos] out of range (length=$totalLength)."
-        }
+        require(pos in 0..totalLength)
 
-        // The new piece referencing appended data
         val newPiece = Piece(appendBuffer, appendBuffer.length(), bytes.size.toLong())
         appendBuffer.append(bytes)
 
-        // Find the piece that covers 'pos'
-        val point = at(pos)
-        if (point == null) {
-            // pos == totalLength (end) or table is empty
-            pieces.add(newPiece)
-            // The new piece starts at totalLength
-            val tableIndex = pieces.size - 1
-            updateIndex(tableIndex) // do a localized re-index
-        } else if (point.position == pos) {
-            // Exactly on a boundary
-            pieces.add(point.tableIndex, newPiece)
-            // Remove the old index for the old piecePoint
-            removeIndex(point.tableIndex + 1)
-            // Insert index for new piece
-            updateIndex(point.tableIndex)
-            // The piece that was at point.tableIndex is now shifted to index+1, re-index that too
-            updateIndex(point.tableIndex + 1)
-        } else {
-            // Splitting a piece
-            val (leftPiece, rightPiece) = point.piece.split(pos - point.position)
-            // Remove the original piece from the list
-            pieces.removeAt(point.tableIndex)
-            removeIndex(point.tableIndex) // remove old index entry
+        if (pieces.isEmpty()) {
+            addNewPiece(newPiece)
+            totalLength = bytes.size.toLong()
+            return
+        }
 
-            // Insert left, newPiece, right
-            pieces.addAll(point.tableIndex, listOf(leftPiece, newPiece, rightPiece))
-            // Re-index just the newly inserted slices
-            updateIndex(point.tableIndex)
-            updateIndex(point.tableIndex + 1)
-            updateIndex(point.tableIndex + 2)
+        val index = findPieceIndex(pos)
+        val (startInPiece, pieceIndex) = if (index != -1) {
+            val start = prefixSums[index]
+            (pos - start) to index
+        } else {
+            0L to pieces.size
+        }
+
+        if (startInPiece == 0L) {
+            insertPieceAt(pieceIndex, newPiece)
+        } else {
+            splitAndInsert(pieceIndex, startInPiece, newPiece)
         }
 
         totalLength += bytes.size
+        mergeIfPossible(pieceIndex)
     }
 
     override fun delete(pos: Long, len: Int) {
-        if (len <= 0)
+        if (len <= 0) return
+        val endPos = pos + len
+        require(pos in 0 until totalLength && endPos <= totalLength) {
+            "Deletion range [$pos, $endPos) out of bounds (length=$totalLength)"
+        }
+
+        if (totalLength == 0L) return
+
+        val startIndex = findPieceIndex(pos)
+        val startSplitOffset = pos - prefixSums[startIndex]
+        val startRight = splitPiece(startIndex, startSplitOffset)
+
+        val newEndIndex = findPieceIndex(endPos - 1)
+        val endSplitOffset = endPos - prefixSums[newEndIndex]
+        val endRight = splitPiece(newEndIndex, endSplitOffset)
+
+        // Corrected removal range calculation
+        val removeFrom = if (startRight != null) startIndex + 1 else startIndex
+        val removeTo = newEndIndex + 1 // Always remove up to newEndIndex (inclusive)
+
+        if (removeFrom >= pieces.size || removeTo > pieces.size || removeFrom >= removeTo) {
+            rebuildPrefixSumsFrom(0)
             return
-
-        require(pos in 0 until totalLength) {
-            "Deletion pos[$pos] out of range (length=$totalLength)."
         }
 
-        val endPos = pos + len - 1
-        val rangePoints = range(pos, endPos)
-        if (rangePoints.isEmpty()) return
+        val deletedLength = prefixSums[removeTo] - prefixSums[removeFrom]
+        totalLength -= deletedLength
 
-        val first = rangePoints.first()
-        val last  = rangePoints.last()
-        val startIdx = first.tableIndex
-        val endIdx   = last.tableIndex
+        pieces.subList(removeFrom, removeTo).clear()
+        rebuildPrefixSumsFrom(removeFrom.coerceAtLeast(0))
 
-        // Remove the pieces in one shot
-        pieces.subList(startIdx, endIdx + 1).clear()
-
-        // Remove indices for each piece in that range
-        for (pt in rangePoints) {
-            indices.remove(pt.position)
-        }
-
-        // Possibly re-insert partial leftover from the "last" piece
-        val lastPieceEndPos = last.endPosition()
-        if (endPos < lastPieceEndPos - 1) {
-            val cutPos = pos + len - last.position
-            val (_, right) = last.piece.split(cutPos)
-            pieces.add(startIdx, right)
-        }
-
-        // Possibly re-insert partial leftover from the "first" piece
-        if (pos > first.position) {
-            val (left, _) = first.piece.split(pos - first.position)
-            pieces.add(startIdx, left)
-        }
-
-        // Important!!!!!: re-index everything from startIdx onward
-        updateIndex(startIdx)
-
-        totalLength -= len
+        // Merge adjacent pieces safely
+        if (removeFrom > 0) mergeIfPossible(removeFrom - 1)
+        if (removeFrom < pieces.size) mergeIfPossible(removeFrom)
     }
 
+    private fun mergeIfPossible(index: Int) {
+        if (index < 0 || index >= pieces.size) return
+
+        // Merge backward
+        var i = index
+        while (i > 0 && pieces[i - 1].canMergeWith(pieces[i])) {
+            val merged = pieces[i - 1].merge(pieces[i])
+            pieces.removeAt(i)
+            pieces.removeAt(i - 1)
+            pieces.add(i - 1, merged)
+            rebuildPrefixSumsFrom(i - 1)
+            i--
+        }
+
+        // Merge forward
+        i = index
+        while (i < pieces.size - 1 && pieces[i].canMergeWith(pieces[i + 1])) {
+            val merged = pieces[i].merge(pieces[i + 1])
+            pieces.removeAt(i + 1)
+            pieces.removeAt(i)
+            pieces.add(i, merged)
+            rebuildPrefixSumsFrom(i)
+        }
+    }
+
+    private fun splitPiece(index: Int, offset: Long): Piece? {
+        if (offset <= 0 || offset >= pieces[index].length) return null
+
+        val original = pieces[index]
+        val (left, right) = original.split(offset)
+
+        pieces[index] = left
+        pieces.add(index + 1, right)
+        rebuildPrefixSumsFrom(index)
+
+        return right
+    }
 
     override fun get(pos: Long, len: Int): ByteArray {
         if (len <= 0)
             return ByteArray(0)
 
-        val bytes = bytes()
-        val endPos = pos + len - 1
-        val rangePoints = range(pos, endPos)
-        if (rangePoints.isEmpty())
-            return ByteArray(0)
+        val endPos = pos + len
+        val startIndex = findPieceIndex(pos)
+        val endIndex = findPieceIndex(endPos - 1)
+
+        if (startIndex == -1 || endIndex == -1) return ByteArray(0)
 
         val result = ByteArray(len)
-        var remains = len
-        var destPos = 0
+        var copied = 0L
+        var currentIndex = startIndex
+        var offsetInPiece = (pos - prefixSums[startIndex]).toInt()
 
-        // Start offset in the first piece
-        var offsetInPiece = (pos - rangePoints[0].position).toInt()
-
-        for (pp in rangePoints) {
-            val pieceSize = pp.piece.length.toInt()
-            val toCopy = min(pieceSize - offsetInPiece, remains)
-            val chunk = pp.piece.bytes(offsetInPiece, toCopy)
-            chunk.copyInto(result, destinationOffset = destPos)
-            remains -= toCopy
-            destPos += toCopy
+        while (copied < len && currentIndex <= endIndex) {
+            val piece = pieces[currentIndex]
+            val toCopy = min(piece.length - offsetInPiece, len - copied).toInt()
+            piece.bytes(offsetInPiece, toCopy).copyInto(result, copied.toInt())
+            copied += toCopy
             offsetInPiece = 0
-            if (remains <= 0)
-                break
+            currentIndex++
         }
 
         return result
+    }
+
+    /**
+     * Adds a new piece to the end of the pieces list and updates prefix sums.
+     */
+    private fun addNewPiece(newPiece: Piece) {
+        pieces.add(newPiece)
+        prefixSums.add(prefixSums.last() + newPiece.length)
+    }
+
+    /**
+     * Inserts a piece at specific index and updates prefix sums.
+     */
+    private fun insertPieceAt(index: Int, newPiece: Piece) {
+        pieces.add(index, newPiece)
+        rebuildPrefixSumsFrom(index)
     }
 
     override fun length(): Long = totalLength
@@ -179,176 +199,52 @@ class PieceTable private constructor(
         return all.bytes(0, all.length())
     }
 
-    fun writeToFile(outputStream: OutputStream) {
-        outputStream.use { it.write(bytes()) }
-    }
-
-    /**
-     * Finds which piece covers [pos].
-     * Instead of clearing from `pos` onward, we do partial map lookups,
-     * and if we need more, we fill forward in [fillToIndices].
-     */
-    private fun at(pos: Long): PiecePoint? {
-        if (pieces.isEmpty()) return null
-        // 1) Look for floor entry
-        val floor = indices.floorEntry(pos)
-        val piecePoint = floor?.value
-        return when {
-            piecePoint == null -> {
-                // No entry found with key <= pos. Start from the beginning.
-                fillToIndices(pos, 0, 0)
-            }
-            piecePoint.contains(pos) -> {
-                piecePoint
-            }
-            else -> {
-                // We do partial fill from piecePoint.tableIndex + 1 onward
-                fillToIndices(pos, piecePoint.endPosition(), piecePoint.tableIndex + 1)
+    private fun findPieceIndex(pos: Long): Int {
+        var low = 0
+        var high = prefixSums.size - 2
+        while (low <= high) {
+            val mid = (low + high) ushr 1
+            val start = prefixSums[mid]
+            val end = prefixSums[mid + 1]
+            when {
+                pos < start -> high = mid - 1
+                pos >= end -> low = mid + 1
+                else -> return mid
             }
         }
+
+        return -1
     }
 
-    /**
-     * Return all pieces covering [startPos-endPos], in a single pass.
-     */
-    private fun range(startPos: Long, endPos: Long): List<PiecePoint> {
-        if (startPos > endPos)
-            return emptyList()
-
-        val startPoint = at(startPos) ?: return emptyList()
-        if (!startPoint.contains(startPos))
-            return emptyList()  // sanity check
-
-        val result = mutableListOf<PiecePoint>()
-        var curr = startPoint
-        result.add(curr)
-
-        // We'll iterate forward in the pieces array, not calling at(...) repeatedly.
-        var i = curr.tableIndex + 1
-        while (i < pieces.size) {
-            // Make sure index i is in the map, or fill it
-            val nextPos = curr.endPosition()
-            val maybeNext = indices[nextPos] ?: run {
-                fillToIndices(endPos, nextPos, i)
-            }
-            if (maybeNext == null)
-                break
-
-            if (maybeNext.position > endPos)
-                break
-
-            result.add(maybeNext)
-            curr = maybeNext
-            i++
-        }
-
-        return result
-    }
-
-    /**
-     * Moves forward from [tableIndex], building or updating [indices],
-     * until we find a piece that contains [pos], or we exhaust the list.
-     */
-    private fun fillToIndices(pos: Long, piecePosition: Long, tableIndex: Int): PiecePoint? {
-        var runningPos = piecePosition
-        for (i in tableIndex until pieces.size) {
-            val p = pieces[i]
-            val pp = PiecePoint(runningPos, i, p)
-            indices[pp.position] = pp
-            if (pp.contains(pos)) {
-                return pp
-            }
-
-            runningPos += p.length
-        }
-        return null
-    }
-
-    /**
-     * We do a localized re-index starting from [tableIndex] to the end.
-     * This is cheaper than clearing from the beginning or from a big tail.
-     */
-    private fun updateIndex(tableIndex: Int) {
-        if (tableIndex < 0 || tableIndex >= pieces.size)
-            return
-
-        // remove all existing index entries for tableIndex and beyond
-        // but only up to next piece boundary
-        val pieceStart = positionOf(tableIndex)
-        val tailKeys = indices.tailMap(pieceStart, true).keys.toList()
-        for (k in tailKeys) {
-            val pt = indices[k] ?: continue
-            if (pt.tableIndex >= tableIndex) {
-                indices.remove(k)
-            }
-        }
-        // re-build from tableIndex forward until we run out or cover new positions
-        fillToIndices(Long.MAX_VALUE, pieceStart, tableIndex)
-    }
-
-    /**
-     * Remove the index entry for the piece at [tableIndex], if any.
-     * We do not blow away the entire tail of the map.
-     */
-    private fun removeIndex(tableIndex: Int) {
-        // We only remove the key that references that piece
-        if (tableIndex < 0 || tableIndex >= pieces.size) return
-        val startPos = positionOf(tableIndex)
-        indices.remove(startPos)
-    }
-
-    /**
-     * The absolute position of piece at [idx], computed by summing lengths of prior pieces.
-     * For performance, we rely on the fact that [updateIndex] eventually corrects or caches it.
-     */
-    private fun positionOf(idx: Int): Long {
-        var sum = 0L
-        for (i in 0 until idx) {
-            sum += pieces[i].length
-        }
-        return sum
-    }
-
-    /**
-     * Combines adjacent pieces in [pieces] if they reference the same buffer and are contiguous.
-     * Also clears [indices], so it can be rebuilt fresh.
-     */
-    fun gc() {
-        val merged = mutableListOf<Piece>()
-        var prev: Piece? = null
-        for (p in pieces) {
-            if (prev == null) {
-                prev = p
-            } else if (prev.target === p.target && prev.end() == p.bufIndex) {
-                // Merge them
-                prev = Piece(prev.target, prev.bufIndex, prev.length + p.length)
+    private fun rebuildPrefixSumsFrom(fromIndex: Int) {
+        var current = prefixSums[fromIndex]
+        for (i in fromIndex until pieces.size) {
+            current += pieces[i].length
+            if (i + 1 < prefixSums.size) {
+                prefixSums[i + 1] = current
             } else {
-                merged.add(prev)
-                prev = p
+                prefixSums.add(current)
             }
         }
-        if (prev != null) merged.add(prev)
-
-        pieces.clear()
-        pieces.addAll(merged)
-        indices.clear()
-
-        // re-index from scratch
-        var runningPos = 0L
-        for ((i, piece) in pieces.withIndex()) {
-            indices[runningPos] = PiecePoint(runningPos, i, piece)
-            runningPos += piece.length
+        // Trim excess
+        while (prefixSums.size > pieces.size + 1) {
+            prefixSums.removeLast()
         }
     }
 
-    private data class PiecePoint(
-        val position: Long,
-        val tableIndex: Int,
-        val piece: Piece
-    ) {
-        fun endPosition(): Long = position + piece.length
-        fun contains(pos: Long): Boolean = (pos >= position && pos < endPosition())
+    private fun splitAndInsert(tableIndex: Int, offset: Long, newPiece: Piece) {
+        val original = pieces[tableIndex]
+        val (left, right) = original.split(offset)
+        pieces.removeAt(tableIndex)
+        pieces.addAll(tableIndex, listOf(left, newPiece, right))
+        rebuildPrefixSumsFrom(tableIndex)
     }
+
+    private fun Piece.canMergeWith(other: Piece): Boolean =
+        this.target === other.target && this.end() == other.bufIndex
+
+    private fun Piece.merge(other: Piece): Piece =
+        Piece(this.target, this.bufIndex, this.length + other.length)
 
     companion object {
         fun create(): PieceTable {

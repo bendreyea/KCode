@@ -1,8 +1,8 @@
 package org.editor.presentation.components.textpane
 
-import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.launch
+import org.editor.ApplicationScope
 import org.editor.application.Caret
 import org.editor.application.TextEdit
 import org.editor.syntax.HighlightInterval
@@ -12,9 +12,7 @@ import org.editor.syntax.SyntaxHighlighter
  * Provides the “document model” for our custom KTextPane,
  * plus a place to do highlighting.
  */
-class TextPaneContent(private val textEdit: TextEdit,
-                      private val mainScope: CoroutineScope
-) {
+class TextPaneContent(private val textEdit: TextEdit) {
     private val listeners = mutableListOf<(Int, Int) -> Unit>()
     private val parser = SyntaxHighlighter()
     private val channel = Channel<Pair<IntRange, (Int) -> String>>(capacity = 100)
@@ -24,7 +22,7 @@ class TextPaneContent(private val textEdit: TextEdit,
 
     init {
         repeat(numConsumers) {
-            mainScope.launch {
+            ApplicationScope.scope.launch {
                 consumeRows(channel)
             }
         }
@@ -90,7 +88,7 @@ class TextPaneContent(private val textEdit: TextEdit,
 
         // dispatch the parse range to our channel so that it runs in the background.
         subRanges.forEachIndexed { index, subRange ->
-            mainScope.launch {
+            ApplicationScope.scope.launch {
                 produceRows(subRange) { lineIndex -> getText(lineIndex) }
             }
         }

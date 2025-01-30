@@ -2,37 +2,63 @@ package org.editor.benchmarks
 
 import kotlinx.benchmark.*
 import org.editor.core.PieceTable
+import org.editor.core.Rope
 import kotlin.random.Random
 
 @State(Scope.Thread)
+@BenchmarkMode(Mode.All)
 open class PieceTableBenchmark {
 
     private lateinit var pieceTable: PieceTable
+    private lateinit var rope: Rope
     private lateinit var sampleData: ByteArray
+
+    @Param("1024", "4096", "16384")
+    var dataSize: Int = 0
 
     @Setup
     fun setup() {
         pieceTable = PieceTable.create()
-        sampleData = ByteArray(1024) { Random.nextBytes(1)[0] } // Generate 1 KB of random data
-    }
-
-    @Benchmark
-    fun benchmarkInsert() {
+        rope = Rope.create()
+        sampleData = ByteArray(dataSize) { Random.nextBytes(1)[0] }
+        // Preload data for delete/get benchmarks
         pieceTable.insert(0, sampleData)
+        rope.insert(0, sampleData)
     }
 
     @Benchmark
-    fun benchmarkDelete() {
-        pieceTable.delete(0, sampleData.size / 2)
+    fun benchmarkInsert(blackhole: Blackhole) {
+        pieceTable.insert(0, sampleData)
+        blackhole.consume(pieceTable) // Prevent dead code elimination
     }
 
     @Benchmark
-    fun benchmarkGet() {
-        pieceTable.get(0, sampleData.size / 4)
+    fun benchmarkInsertRope(blackhole: Blackhole) {
+        rope.insert(0, sampleData)
+        blackhole.consume(rope)
     }
 
     @Benchmark
-    fun benchmarkLength() {
-        pieceTable.length()
+    fun benchmarkDelete(blackhole: Blackhole) {
+        pieceTable.delete(0, dataSize / 2)
+        blackhole.consume(pieceTable)
+    }
+
+    @Benchmark
+    fun benchmarkDeleteRope(blackhole: Blackhole) {
+        rope.delete(0, dataSize / 2)
+        blackhole.consume(rope)
+    }
+
+    @Benchmark
+    fun benchmarkGet(blackhole: Blackhole) {
+        val result = pieceTable.get(0, dataSize / 4)
+        blackhole.consume(result)
+    }
+
+    @Benchmark
+    fun benchmarkGetRope(blackhole: Blackhole) {
+        val result = rope.get(0, dataSize / 4)
+        blackhole.consume(result)
     }
 }
