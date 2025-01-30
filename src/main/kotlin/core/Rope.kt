@@ -62,7 +62,8 @@ class Rope(
      * Insert the given bytes into this rope at the given [pos].
      */
     override fun insert(pos: Long, bytes: ByteArray?) {
-        if (bytes == null || bytes.isEmpty()) return
+        if (bytes == null || bytes.isEmpty())
+            return
         require(pos in 0..length()) { "Insert index out of bounds" }
 
         // 1) Split at 'pos'.

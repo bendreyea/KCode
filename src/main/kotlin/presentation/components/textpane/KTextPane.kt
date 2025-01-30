@@ -1,8 +1,8 @@
 package org.editor.presentation.components.textpane
 
-import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import org.editor.ApplicationScope
 import org.editor.application.Caret
 import org.editor.presentation.components.SwingDispatchers
 import java.awt.*
@@ -14,8 +14,7 @@ import kotlin.math.min
 
 class KTextPane(
     val textPane: TextPaneContent,
-    private val theme: EditorTheme,
-    private val mainScope: CoroutineScope
+    private val theme: EditorTheme
 ) : JPanel() {
 
     // Lazy font metrics
@@ -151,7 +150,7 @@ class KTextPane(
 
         if (!repaintPending) {
             repaintPending = true
-            mainScope.launch {
+            ApplicationScope.scope.launch {
                 withContext(SwingDispatchers.Swing) {
                     dirtyRegion?.let { region ->
                         repaint(region.x, region.y, region.width, region.height)
@@ -194,7 +193,7 @@ class KTextPane(
         // Reset caret & selection
         controller.clearSelection()
         // Update scroll
-        mainScope.launch {
+        ApplicationScope.scope.launch  {
             withContext(SwingDispatchers.Swing) {
                 scrollX = 0
                 scrollY = 0

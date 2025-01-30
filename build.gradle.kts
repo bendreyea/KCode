@@ -44,3 +44,4 @@ java {
         languageVersion = JavaLanguageVersion.of(22)
     }
 }
+
