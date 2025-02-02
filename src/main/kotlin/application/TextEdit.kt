@@ -26,7 +26,6 @@ interface TextEdit {
      * @return The cursor position after deletion.
      */
     fun delete(row: Int, col: Int, len: Int = 1): Caret
-    fun delete(row: Int, col: Int): Caret
 
     /**
      * Backspaces [length] characters starting at the specified position ([row], [col]),
@@ -38,7 +37,6 @@ interface TextEdit {
      * @return The new cursor position after backspacing.
      */
     fun backspace(row: Int, col: Int, len: Int = 1): Caret
-    fun backspace(row: Int, col: Int): Caret
 
     /**
      * Replaces [length] characters at the specified position ([row], [col]) with [text].

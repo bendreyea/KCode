@@ -40,8 +40,6 @@ class ByteArrayBuffer private constructor(
     }
 
     companion object {
-        private val EMPTY = byteArrayOf()
-
         /**
          * Creates an empty ByteArrayBufferWrapper.
          */

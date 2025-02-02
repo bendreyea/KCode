@@ -64,13 +64,6 @@ class TextEditImpl(
 
     // region -- Delete --------------------------------------------------------------
 
-    /**
-     * Deletes a single character at ([row], [col]).
-     * @return The deleted character(s) as a String.
-     */
-    override fun delete(row: Int, col: Int): Caret {
-        return deleteChar(row, col, 1)
-    }
 
     /**
      * Deletes [len] characters at ([row], [col]) moving to the right.
@@ -83,27 +76,9 @@ class TextEditImpl(
         return edit.min()
     }
 
-    /**
-     * Internal helper to delete [chCount] characters from ([row], [col]).
-     */
-    private fun deleteChar(row: Int, col: Int, chCount: Int): Caret {
-        val toDelete = textRight(row, col, chCount).joinToString("")
-        val edit = createDeleteEdit(row, col, toDelete)
-        pushEdit(edit)
-        return edit.min()
-    }
-
     // endregion
 
     // region -- Backspace -----------------------------------------------------------
-
-    /**
-     * Backspace a single character at ([row], [col]).
-     * @return The new cursor position after backspacing.
-     */
-    override fun backspace(row: Int, col: Int): Caret {
-        return backspaceChar(row, col, 1)
-    }
 
     /**
      * Backspace [len] characters at ([row], [col]), moving to the left.
@@ -113,16 +88,6 @@ class TextEditImpl(
         val edit = createBackspaceEdit(row, col, toDelete)
         pushEdit(edit)
         return edit.min()
-    }
-
-    /**
-     * Internal helper to backspace [chCount] characters at ([row], [col]).
-     */
-    private fun backspaceChar(row: Int, col: Int, chCount: Int): Caret {
-        val toDelete = textLeft(row, col, chCount).joinToString("")
-        val edit = createBackspaceEdit(row, col, toDelete)
-        pushEdit(edit)
-        return edit.min()  // so single-line backspaces move left by chCount
     }
 
     // endregion
@@ -215,6 +180,7 @@ class TextEditImpl(
         if (editQueue.isNotEmpty() && dryBuffer.isEmpty()) {
             applyEditsInMemory()
         }
+
         return dryBuffer[row] ?: getDocText(row)
     }
 
@@ -483,81 +449,6 @@ class TextEditImpl(
 
     // region -- Text Extraction Helpers (Right / Left) ------------------------------
 
-    /**
-     * Returns up to [chLen] characters to the right of ([row], [col]) across lines, if needed.
-     * This is character-based, handling Unicode with [Texts.chLength].
-     */
-    fun textRight(row: Int, col: Int, chLen: Int): List<String> {
-        var remainder = chLen
-        var currentCol = col
-        val ret = mutableListOf<String>()
-
-        for (i in row until doc.rows()) {
-            val line = getText(i)
-            if (currentCol >= line.length) break
-            val text = line.substring(currentCol)
-            if (text.isEmpty()) break
-
-            val len = Texts.chLength(text)
-            if (remainder - len <= 0) {
-                ret += Texts.left(text, remainder)
-                break
-            }
-            ret += text
-            remainder -= len
-            currentCol = 0
-        }
-
-        // If the last collected text ends with a newline, append an empty string
-        if (ret.isNotEmpty() && ret.last().endsWith("\n")) {
-            ret += ""
-        }
-        return ret
-    }
-
-    /**
-     * Returns up to [chLen] characters to the left of ([row], [col]) across lines, if needed.
-     */
-    fun textLeft(row: Int, col: Int, chLen: Int): List<String> {
-        var remainder = chLen
-        val ret = LinkedList<String>()
-        var r = row
-        var c = col
-
-        // If we're at the start of the line, move up one row and jump to its end
-        if (c == 0) {
-            r--
-            if (r < 0) return emptyList()
-            c = getText(r).length
-        }
-
-        while (r >= 0 && remainder > 0) {
-            val line = getText(r)
-            val usableLen = c.coerceAtMost(line.length)
-            if (usableLen == 0) {
-                r--
-                if (r < 0) break
-                c = getText(r).length
-                continue
-            }
-
-            if (remainder < usableLen) {
-                ret.addFirst(line.substring(usableLen - remainder, usableLen))
-                remainder = 0
-            } else {
-                ret.addFirst(line.substring(0, usableLen))
-                remainder -= usableLen
-                r--
-                if (r < 0) break
-                c = getText(r).length
-            }
-        }
-        return ret
-    }
-
-    /**
-     * Byte-based version of [textRight].
-     */
     fun textRightByte(row: Int, col: Int, byteLen: Int): List<String> {
         var remainder = byteLen
         var currentCol = col
@@ -582,9 +473,6 @@ class TextEditImpl(
         return ret
     }
 
-    /**
-     * Byte-based version of [textLeft].
-     */
     fun textLeftByte(row: Int, col: Int, byteLen: Int): List<String> {
         var remainder = byteLen
         val ret = LinkedList<String>()
@@ -675,8 +563,6 @@ class TextEditImpl(
 
     // region -- Utilities & Accessors -----------------------------------------------
 
-    fun getDoc(): Document = doc
-    fun getDryBuffer(): Map<Int, String> = dryBuffer
     fun getEditQueue(): Deque<Edit> = editQueue
     fun getUndoStack(): Deque<Edit> = undo
     fun getRedoStack(): Deque<Edit> = redo
@@ -801,16 +687,6 @@ sealed class Edit {
             return Cmp(reversed)
         }
     }
-}
-
-
-/**
- * text utility object for Unicode or other specialized operations.
- */
-object Texts {
-    fun chLength(text: String): Int = text.length
-    fun left(text: String, count: Int): String = text.take(count.coerceAtMost(text.length))
-    fun right(text: String, count: Int): String = text.takeLast(count.coerceAtMost(text.length))
 }
 
 
