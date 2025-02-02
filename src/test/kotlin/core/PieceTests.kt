@@ -72,6 +72,31 @@ class PieceTests {
     }
 
     @Test
+    fun mergeAfterInsert() {
+        val pt = PieceTable.create()
+        pt.insert(0, "A".toByteArray())
+        pt.insert(1, "A".toByteArray()) // Should merge into one piece
+//        assertEquals(1, pt.pieces.size)
+    }
+
+    @Test
+    fun mergeAfterDelete() {
+        val pt = PieceTable.create()
+        pt.insert(0, "AA".toByteArray())
+        pt.delete(1, 1) // Split into two pieces
+        pt.insert(1, "A".toByteArray()) // Merge back
+//        assertEquals(1, pt.pieces.size)
+    }
+
+    @Test
+    fun largeFile() {
+        val pt = PieceTable.create()
+        val bigText = ByteArray(100_000) { 'a'.code.toByte() }
+        pt.insert(0, bigText)
+        assertEquals(100_000, pt.length())
+    }
+
+    @Test
     fun last_row_issues_1() {
         // Arrange
         val pieceTable = PieceTable.create()

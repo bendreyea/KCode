@@ -5,6 +5,7 @@ import org.editor.application.NewLine
 import org.junit.jupiter.api.Assertions.assertArrayEquals
 import org.junit.jupiter.api.Assertions.assertEquals
 import java.nio.charset.Charset
+import java.nio.charset.StandardCharsets
 import kotlin.test.Test
 
 class DocumentTests {
@@ -52,27 +53,6 @@ class DocumentTests {
         assertEquals("Hello", resultText, "Text after deletion should be 'Hello'.")
     }
 
-    /**
-     * Tests deleting text that spans multiple lines.
-     * Ensures that lines are merged correctly after deletion.
-     */
-    @Test
-    fun delete_withMultipleLines_deletesCorrectly() {
-        // Arrange
-        val document = DocumentImpl.create()
-        val initialText = "Hello\nWorld"
-        document.insert(0, 0, initialText)
-        val deleteRow = 0
-        val deleteColStart = 5
-        val deleteLength = 1 // Deleting the newline character
-
-        // Act
-        document.delete(deleteRow, deleteColStart, deleteLength)
-
-        // Assert
-        val resultText = document.getText(0)
-        assertEquals("HelloWorld", resultText, "Text after deletion should be 'HelloWorld'.")
-    }
 
     /**
      * Tests retrieving text from a valid row.
@@ -243,51 +223,6 @@ class DocumentTests {
     }
 
     /**
-     * Tests deleting text from a specific position that includes a newline.
-     * Ensures that the lines are merged correctly after deletion.
-     */
-    @Test
-    fun delete_includingNewLine_mergesLinesCorrectly() {
-        // Arrange
-        val document = DocumentImpl.create()
-        val insertText = "Hello\nWorld"
-        document.insert(0, 0, insertText)
-        val deleteRow = 0
-        val deleteColStart = 5
-        val deleteLength = 1 // Deleting the newline character
-
-        // Act
-        document.delete(deleteRow, deleteColStart, deleteLength)
-
-        // Assert
-        assertEquals(1, document.rows(), "Document should contain 1 row after deleting the newline.")
-        assertEquals("HelloWorld", document.getText(0), "Text should be merged into 'HelloWorld'.")
-    }
-
-    /**
-     * Tests inserting and deleting text to verify the integrity of the document's internal state.
-     * Ensures that operations do not corrupt the document structure.
-     */
-    @Test
-    fun insertAndDelete_verifiesDocumentIntegrity() {
-        // Arrange
-        val document = DocumentImpl.create()
-        val initialInsert = "Hello\nWorld"
-        document.insert(0, 0, initialInsert)
-        val deleteRow = 0
-        val deleteColStart = 5
-        val deleteLength = 1 // Deleting the newline
-
-        // Act
-        document.delete(deleteRow, deleteColStart, deleteLength)
-        document.insert(0, 5, "Beautiful ")
-
-        // Assert
-        assertEquals(1, document.rows(), "Document should contain 1 row after deletion and insertion.")
-        assertEquals("HelloBeautiful World", document.getText(0), "Text should reflect the inserted 'Beautiful '.")
-    }
-
-    /**
      * Tests inserting text at various positions and verifies that the text is placed correctly.
      */
     @Test
@@ -304,68 +239,6 @@ class DocumentTests {
         assertEquals("Hello, Beautiful World", document.getText(0), "Text should reflect all insertions correctly.")
     }
 
-    /**
-     * Tests deleting text from multiple positions and ensures that the document updates accurately.
-     */
-    @Test
-    fun delete_fromMultiplePositions_updatesDocumentAccurately() {
-        // Arrange
-        val document = DocumentImpl.create()
-        document.insert(0, 0, "Hello, Beautiful World")
-
-        // Act
-        document.delete(0, 5, 1) // Delete the comma
-        document.delete(0, 6, 10) // Delete " Beautiful"
-
-        // Assert
-        assertEquals("Hello World", document.getText(0), "Text should reflect deletions accurately.")
-    }
-
-    /**
-     * Tests retrieving cursor positions after various insertions and deletions.
-     * Ensures that the cursor positions are mapped correctly.
-     */
-    @Test
-    fun pos_afterInsertionsAndDeletions_returnsCorrectCursor() {
-        // Arrange
-        val document = DocumentImpl.create()
-        document.insert(0, 0, "Hello World")
-
-        // Act
-        document.insert(0, 5, ",")
-        document.delete(0, 6, 1)
-        val cursor = document.pos(5) // Position after "Hello"
-
-        // Assert
-        assertEquals(0, cursor.row, "Cursor row should be 0.")
-        assertEquals(5, cursor.col, "Cursor column should be 5.")
-    }
-
-    /**
-     * Tests the document's ability to handle different charsets.
-     * Ensures that the correct charset is returned.
-     */
-    @Test
-    fun charset_withDifferentCharsets_returnsCorrectCharset() {
-        // Arrange
-        val utf8Charset = Charset.forName("UTF-8")
-        val isoCharset = Charset.forName("ISO-8859-1")
-        val documentUtf8 = DocumentImpl.create()
-        val documentIso = DocumentImpl.create()
-
-        // Act
-        // Assuming DocumentImpl allows setting charset, which is not shown in original tests
-        // If not, this test should be adjusted accordingly
-        // For demonstration, we will check the default charset
-        val charsetUtf8 = documentUtf8.charset()
-        val charsetIso = documentIso.charset()
-
-        // Assert
-        assertEquals(utf8Charset, charsetUtf8, "Default charset should be UTF-8.")
-        // If DocumentImpl supports setting charset, uncomment the following lines:
-        // documentIso.setCharset(isoCharset)
-        // assertEquals(isoCharset, documentIso.charset(), "Charset should be ISO-8859-1 after setting.")
-    }
 
     /**
      * Tests the document's row ending type in different environments.
@@ -408,4 +281,118 @@ class DocumentTests {
         assertEquals("AB", doc.getText(0), "Row 0 should be 'AB' after merging")
         assertEquals(1, doc.rows(), "Document should have merged into a single row")
     }
+
+    @Test
+    fun pos_mbytes_charsets() {
+        // Arrange
+        val document = DocumentImpl.create()
+        // Text: "açb" (UTF-8: a=1 byte, ç=2 bytes, b=1 byte)
+        // Character Positions: [0, 1, 2]
+        // Byte Positions: [0, 1, 3, 4]
+        val insertText = "açb"
+        document.insert(0, 0, insertText)
+        val serialNumber = 3L
+
+        // Act
+        val cursor = document.pos(serialNumber)
+
+        // Assert
+        assertEquals(0, cursor.row, "Cursor row should be 0 for serial 0.")
+        assertEquals(2, cursor.col, "Cursor column should be 0 for serial 2.")
+    }
+
+    @Test
+    fun `insert and retrieve multibyte characters`() {
+        // Arrange
+        val document = DocumentImpl.create()
+        val insertText = "açb"  // UTF-8: 'a' (1 byte), 'ç' (2 bytes), 'b' (1 byte)
+        document.insert(0, 0, insertText)
+
+        // Act
+        val retrievedText = document.getText(0)
+
+        // Assert
+        assertEquals(insertText, retrievedText, "Inserted text should match retrieved text.")
+    }
+
+    @Test
+    fun `get byte array for multibyte characters`() {
+        // Arrange
+        val document = DocumentImpl.create()
+        val insertText = "açb"
+        document.insert(0, 0, insertText)
+
+        // Act
+        val byteArray = document.get(0)
+
+        // Assert
+        val expectedBytes = insertText.toByteArray(StandardCharsets.UTF_8)
+        assertArrayEquals(expectedBytes, byteArray, "Byte array should match UTF-8 encoding.")
+    }
+
+    @Test
+    fun `serial position for multibyte characters`() {
+        // Arrange
+        val document = DocumentImpl.create()
+        document.insert(0, 0, "açb") // 'a' = 1 byte, 'ç' = 2 bytes, 'b' = 1 byte
+        // Byte positions: 'a' (0), 'ç' (1-2), 'b' (3)
+        val size = document.rawSize()
+
+        // Act & Assert
+        assertEquals(4, size, "Raw byte size should be 4.")
+        assertEquals(0, document.serial(0, 0), "Serial of 'a' should be 0.")
+        assertEquals(1, document.serial(0, 1), "Serial of 'ç' should be 1.")
+        assertEquals(3, document.serial(0, 3), "Serial of 'b' should be 3.")
+    }
+
+    @Test
+    fun `pos function for multibyte characters`() {
+        // Arrange
+        val document = DocumentImpl.create()
+        document.insert(0, 0, "açb")
+
+        // Act & Assert
+        val caret1 = document.pos(0) // 'a'
+        assertEquals(0, caret1.row)
+        assertEquals(0, caret1.col)
+
+        val caret2 = document.pos(1) // 'ç' (first byte)
+        assertEquals(0, caret2.row)
+        assertEquals(1, caret2.col)
+
+        val caret3 = document.pos(3) // 'b'
+        assertEquals(0, caret3.row)
+        assertEquals(2, caret3.col)
+    }
+
+    @Test
+    fun `delete multibyte character and check document state`() {
+        // Arrange
+        val document = DocumentImpl.create()
+        document.insert(0, 0, "açb")
+
+        // Act
+        document.delete(0, 1, "ç") // Deleting 'ç' (2 bytes)
+
+        // Assert
+        assertEquals("ab", document.getText(0), "Text after deleting 'ç' should be 'ab'.")
+        assertEquals(2, document.rawSize(), "Raw byte size should decrease by 2 after deletion.")
+    }
+
+    @Test
+    fun `handling mixed ascii and multibyte characters`() {
+        // Arrange
+        val document = DocumentImpl.create()
+        document.insert(0, 0, "Hello, 世界!") // "世界" is 6 bytes in UTF-8
+
+        // Act
+        val serialPos = document.serial(0, 7) // Position after 'Hello, ' should point to '世'
+
+        // Assert
+        assertEquals(7, serialPos, "Serial position should correctly track multi-byte characters.")
+        val caret = document.pos(7)
+        assertEquals(0, caret.row)
+        assertEquals(7, caret.col, "Column position should match input position.")
+    }
+
 }

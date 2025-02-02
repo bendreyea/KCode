@@ -4,6 +4,7 @@ import org.editor.syntax.intervalTree.IntervalTree
 import java.util.*
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.AtomicInteger
+import java.util.concurrent.locks.ReentrantLock
 
 /**
  * Represents the parser state at the start of a chunk:
@@ -38,6 +39,7 @@ class SyntaxHighlighter {
     private val lineHashes = ConcurrentHashMap<Int, AtomicInteger>()
     private val lineEndStates = ConcurrentHashMap<Int, LexerState>()
     private val carryStackPerLine = ConcurrentHashMap<Int, List<BracketInfo>>()
+    private val highlighterLock = ReentrantLock()
 
     private val keywords = setOf(
         "abstract", "assert", "boolean", "break", "byte", "case", "catch", "char",
@@ -55,24 +57,30 @@ class SyntaxHighlighter {
      * If re-invoked, existing data structures are cleared.
      */
     fun initializeCheckpoints(totalRows: Int) {
-        parseCheckpoints.clear()
-        lineIntervalTrees.clear()
-        lineHashes.clear()
-        lineEndStates.clear()
-        carryStackPerLine.clear()
+        highlighterLock.lock()
+        try {
+            parseCheckpoints.clear()
+            lineIntervalTrees.clear()
+            lineHashes.clear()
+            lineEndStates.clear()
+            carryStackPerLine.clear()
 
-        recalcChunkSize(totalRows)
-        val numChunks = (totalRows + chunkSize - 1) / chunkSize
+            recalcChunkSize(totalRows)
+            val numChunks = (totalRows + chunkSize - 1) / chunkSize
 
-        for (i in 0 until numChunks) {
-            val startLine = i * chunkSize
-            parseCheckpoints.add(
-                ParseCheckpoint(
-                    chunkStartLine = startLine,
-                    startLexerState = LexerState.DEFAULT,
-                    startBracketStack = ArrayDeque() // empty bracket stack
+            for (i in 0 until numChunks) {
+                val startLine = i * chunkSize
+                parseCheckpoints.add(
+                    ParseCheckpoint(
+                        chunkStartLine = startLine,
+                        startLexerState = LexerState.DEFAULT,
+                        startBracketStack = ArrayDeque() // empty bracket stack
+                    )
                 )
-            )
+            }
+        }
+        finally {
+            highlighterLock.unlock()
         }
     }
 

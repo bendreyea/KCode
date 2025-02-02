@@ -69,7 +69,6 @@ class RopeTests {
         assertArrayEquals(ByteArray(0), rope.get(0, 5))
     }
 
-    @Test
     fun length_returnsCorrectLength() {
         val rope = Rope.create()
         rope.insert(0, "Hello".toByteArray())

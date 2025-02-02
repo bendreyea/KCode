@@ -7,6 +7,7 @@ import org.editor.application.Caret
 import org.editor.application.TextEdit
 import org.editor.syntax.HighlightInterval
 import org.editor.syntax.SyntaxHighlighter
+import java.util.concurrent.locks.ReentrantReadWriteLock
 
 /**
  * Provides the “document model” for our custom KTextPane,
@@ -17,6 +18,8 @@ class TextPaneContent(private val textEdit: TextEdit) {
     private val parser = SyntaxHighlighter()
     private val channel = Channel<Pair<IntRange, (Int) -> String>>(capacity = 100)
     private val numConsumers = Runtime.getRuntime().availableProcessors()
+    private val stateLock = ReentrantReadWriteLock()
+
 
     private var measureMaxLineWidth = 0
 
@@ -75,11 +78,17 @@ class TextPaneContent(private val textEdit: TextEdit) {
         return measureMaxLineWidth
     }
 
-    fun onTextChanged(from: Int, to : Int, totalRowsBeforeChange: Int) {
-        val currentTotalRows = rows()
-        if (totalRowsBeforeChange != currentTotalRows) {
-            // The number of rows has changed, so we need to reparse everything
-            parser.resizeCheckpoints(currentTotalRows)
+    private fun onTextChanged(from: Int, to : Int, totalRowsBeforeChange: Int) {
+        stateLock.writeLock().lock()
+        try {
+            val currentTotalRows = rows()
+            if (totalRowsBeforeChange != currentTotalRows) {
+                // The number of rows has changed, so we need to reparse everything
+                parser.resizeCheckpoints(currentTotalRows)
+            }
+        }
+        finally {
+            stateLock.writeLock().unlock()
         }
 
         val changedRange = from..to
@@ -95,7 +104,13 @@ class TextPaneContent(private val textEdit: TextEdit) {
     }
 
     fun getIntervalsForLine(row: Int): List<HighlightInterval> {
-        return parser.getAllIntervals(row)
+        stateLock.readLock().lock()
+        try {
+            return parser.getAllIntervals(row)
+        }
+        finally {
+            stateLock.readLock().unlock()
+        }
     }
 
     fun getTextContent(): String {

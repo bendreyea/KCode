@@ -74,8 +74,6 @@ class RowIndex private constructor(private val cacheInterval: Int) {
 
     /**
      * Gets the total byte length from row 0 up to (but not including) [row].
-     *
-     * This method updates the stCache partially, exactly as in your Java code.
      */
     fun get(row: Int): Long {
         require(row in 0 until length) { "Row index out of bounds: $row" }
