@@ -3,7 +3,7 @@ package org.editor.presentation.components.textpane
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.editor.ApplicationScope
-import org.editor.application.Caret
+import org.editor.application.UserCaret
 import org.editor.presentation.components.SwingDispatchers
 import java.awt.*
 import java.awt.event.MouseAdapter
@@ -53,7 +53,7 @@ class KTextPane(
         isFocusable = true
         focusTraversalKeysEnabled = false
 
-        val repaintCallback: (Caret, Caret) -> Unit = { begin, end ->
+        val repaintCallback: (UserCaret, UserCaret) -> Unit = { begin, end ->
             scheduleRepaintLines(begin, end)
         }
 
@@ -90,7 +90,7 @@ class KTextPane(
     /**
      * Instead of parsing here, we only do a repaint. Parsing is done in the MainFrame after changes.
      */
-    private fun scheduleRepaintLines(begin: Caret, end: Caret) {
+    private fun scheduleRepaintLines(begin: UserCaret, end: UserCaret) {
         val (start, finish) = if (begin < end) begin to end else end to begin
         val startRow = start.row
         val endRow = finish.row

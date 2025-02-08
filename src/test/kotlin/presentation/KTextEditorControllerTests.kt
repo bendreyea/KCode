@@ -3,7 +3,7 @@ package presentation
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.verify
-import org.editor.application.Caret
+import org.editor.application.UserCaret
 import org.editor.presentation.components.textpane.EditorTheme
 import org.editor.presentation.components.textpane.KTextEditorController
 import org.editor.presentation.components.textpane.TextPaneContent
@@ -53,9 +53,9 @@ class KTextEditorControllerTest {
     @Test
     fun keyPressed_handleCopyOperation() {
         // Arrange
-        controller.selectionStart = Caret(0, 0)
-        controller.selectionEnd = Caret(0, 5)
-        every { textPane.getText(Caret(0, 0), Caret(0, 5)) } returns "Hello"
+        controller.selectionStart = UserCaret(0, 0)
+        controller.selectionEnd = UserCaret(0, 5)
+        every { textPane.getText(UserCaret(0, 0), UserCaret(0, 5)) } returns "Hello"
 
         val keyEvent = KeyEvent(
             JPanel(),
@@ -81,7 +81,7 @@ class KTextEditorControllerTest {
         val clipboard = Toolkit.getDefaultToolkit().systemClipboard
         clipboard.setContents(StringSelection("PastedText"), null)
 
-        every { textPane.insert(any(), any(), any()) } returns Caret(0, 10)
+        every { textPane.insert(any(), any(), any()) } returns UserCaret(0, 10)
         every { textPane.rows() } returns 1
 
         val keyEvent = KeyEvent(
@@ -116,7 +116,7 @@ class KTextEditorControllerTest {
         controller.keyPressed(keyEvent)
 
         // Assert
-        assertEquals(Caret(0, 1), controller.caret)
+        assertEquals(UserCaret(0, 1), controller.caret)
     }
 
     @Test
@@ -143,10 +143,10 @@ class KTextEditorControllerTest {
     @Test
     fun keyPressed_handleDeleteSelection() {
         // Arrange
-        controller.selectionStart = Caret(0, 0)
-        controller.selectionEnd = Caret(0, 5)
-        every { textPane.getText(Caret(0, 0), Caret(0, 5)) } returns "Hello"
-        every { textPane.replace(any(), any(), any(), any()) } answers { Caret(0, 0) }
+        controller.selectionStart = UserCaret(0, 0)
+        controller.selectionEnd = UserCaret(0, 5)
+        every { textPane.getText(UserCaret(0, 0), UserCaret(0, 5)) } returns "Hello"
+        every { textPane.replace(any(), any(), any(), any()) } answers { UserCaret(0, 0) }
 
         val keyEvent = KeyEvent(
             JPanel(),
@@ -161,14 +161,14 @@ class KTextEditorControllerTest {
         controller.keyPressed(keyEvent)
 
         // Assert
-        assertEquals(Caret(0, 0), controller.caret)
+        assertEquals(UserCaret(0, 0), controller.caret)
         verify { textPane.replace(0, 0, 5, "") }
     }
 
     @Test
     fun mouseDragged_updateSelection() {
         // Arrange
-        controller.selectionStart = Caret(0, 0)
+        controller.selectionStart = UserCaret(0, 0)
         val mouseEvent = MouseEvent(
             JPanel(),
             MouseEvent.MOUSE_DRAGGED,
@@ -187,15 +187,15 @@ class KTextEditorControllerTest {
         controller.mouseDragged(mouseEvent)
 
         // Assert
-        assertEquals(controller.selectionStart, Caret(0, 0))
+        assertEquals(controller.selectionStart, UserCaret(0, 0))
         assertEquals(controller.selectionEnd, controller.caret)
     }
 
     @Test
     fun keyTyped_insertCharacter() {
         // Arrange
-        controller.caret = Caret(0, 5)
-        every { textPane.insert(0, 5, "a") } returns Caret(0, 6)
+        controller.caret = UserCaret(0, 5)
+        every { textPane.insert(0, 5, "a") } returns UserCaret(0, 6)
 
         val keyEvent = KeyEvent(
             JPanel(),
@@ -210,7 +210,7 @@ class KTextEditorControllerTest {
         controller.keyTyped(keyEvent)
 
         // Assert
-        assertEquals(Caret(0, 6), controller.caret)
+        assertEquals(UserCaret(0, 6), controller.caret)
         verify { textPane.insert(0, 5, "a") }
     }
 
@@ -231,15 +231,15 @@ class KTextEditorControllerTest {
         controller.keyPressed(keyEvent)
 
         // Assert
-        assertEquals(Caret(5, 0), controller.caret)
+        assertEquals(UserCaret(5, 0), controller.caret)
     }
 
     @Test
     fun getSelectedText_returnsSelectedText() {
         // Arrange
-        controller.selectionStart = Caret(0, 0)
-        controller.selectionEnd = Caret(0, 5)
-        every { textPane.getText(Caret(0, 0), Caret(0, 5)) } returns "Hello"
+        controller.selectionStart = UserCaret(0, 0)
+        controller.selectionEnd = UserCaret(0, 5)
+        every { textPane.getText(UserCaret(0, 0), UserCaret(0, 5)) } returns "Hello"
 
         // Act
         val selectedText = controller.getSelectedText()

@@ -1,6 +1,6 @@
 package core
 
-import org.editor.core.Trie
+import org.editor.syntax.Trie
 import kotlin.test.Test
 import kotlin.test.assertFalse
 import kotlin.test.assertTrue

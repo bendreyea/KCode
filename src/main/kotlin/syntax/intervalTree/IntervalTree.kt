@@ -165,6 +165,72 @@ class IntervalTree<T : Interval> : Iterable<T> {
      */
     override fun iterator(): Iterator<T> = TreeIterator(root)
 
+    /**
+     * Returns a list of all intervals in the tree that overlap the given query range.
+     *
+     * Two intervals [a, b] and [c, d] overlap if a ≤ d and b ≥ c.
+     */
+    fun queryOverlapping(queryStart: Int, queryEnd: Int): List<T> {
+        val result = mutableListOf<T>()
+        queryOverlapping(root, queryStart, queryEnd, result)
+        return result
+    }
+
+    /**
+     * Recursively searches for intervals overlapping the given [queryStart, queryEnd] range.
+     */
+    private fun queryOverlapping(node: Node, queryStart: Int, queryEnd: Int, result: MutableList<T>) {
+        if (node.isNil) return
+
+        // If the left subtree might have intervals whose end reaches into the query range,
+        // search the left subtree.
+        if (!node.left.isNil && node.left.maxEnd >= queryStart) {
+            queryOverlapping(node.left, queryStart, queryEnd, result)
+        }
+
+        // Check the current node's interval.
+        // Intervals overlap if: node.key.start ≤ queryEnd and node.key.end ≥ queryStart.
+        if (node.key!!.start <= queryEnd && node.key!!.end >= queryStart) {
+            result.addAll(node.intervals)
+        }
+
+        // Only traverse the right subtree if the current node's start is ≤ queryEnd.
+        // Since the tree is ordered by start, if node.key.start > queryEnd then so are all intervals in the right subtree.
+        if (!node.right.isNil && node.key!!.start <= queryEnd) {
+            queryOverlapping(node.right, queryStart, queryEnd, result)
+        }
+    }
+
+    fun queryClosestBefore(position: Int): T? {
+        var node = root
+        var closest: T? = null
+
+        while (!node.isNil) {
+            if (node.key!!.end <= position) {
+                closest = node.key
+                node = node.right
+            } else {
+                node = node.left
+            }
+        }
+        return closest
+    }
+
+    fun queryClosestAfter(position: Int): T? {
+        var node = root
+        var closest: T? = null
+
+        while (!node.isNil) {
+            if (node.key!!.start >= position) {
+                closest = node.key
+                node = node.left
+            } else {
+                node = node.right
+            }
+        }
+        return closest
+    }
+
     // --------------------------------------------------------------------
     //  Red‑Black Node
     // --------------------------------------------------------------------

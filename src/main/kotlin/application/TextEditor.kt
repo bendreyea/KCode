@@ -52,8 +52,9 @@ class TextEditImpl(
      * Inserts [text] at position ([row], [col]).
      * @return The new cursor position after insertion.
      */
-    override fun insert(row: Int, col: Int, text: String): Caret {
-        if (text.isEmpty()) return Caret(row, col)
+    override fun insert(row: Int, col: Int, text: String): UserCaret {
+        if (text.isEmpty())
+            return UserCaret(row, col)
 
         val edit = createInsertEdit(row, col, text)
         pushEdit(edit)
@@ -69,8 +70,8 @@ class TextEditImpl(
      * Deletes [len] characters at ([row], [col]) moving to the right.
      * @return The deleted substring.
      */
-    override fun delete(row: Int, col: Int, len: Int): Caret {
-        val toDelete = textRightByte(row, col, len).joinToString("")
+    override fun delete(row: Int, col: Int, len: Int): UserCaret {
+        val toDelete = textRight(row, col, len).joinToString("")
         val edit = createDeleteEdit(row, col, toDelete)
         pushEdit(edit)
         return edit.min()
@@ -83,8 +84,8 @@ class TextEditImpl(
     /**
      * Backspace [len] characters at ([row], [col]), moving to the left.
      */
-    override fun backspace(row: Int, col: Int, len: Int): Caret {
-        val toDelete = textLeftByte(row, col, len).joinToString("")
+    override fun backspace(row: Int, col: Int, len: Int): UserCaret {
+        val toDelete = textLeft(row, col, len).joinToString("")
         val edit = createBackspaceEdit(row, col, toDelete)
         pushEdit(edit)
         return edit.min()
@@ -100,7 +101,7 @@ class TextEditImpl(
      * If [len] > 0, it is a delete-then-insert.
      * If [len] < 0, it is a backspace-then-insert.
      */
-    override fun replace(row: Int, col: Int, len: Int, text: String): Caret {
+    override fun replace(row: Int, col: Int, len: Int, text: String): UserCaret {
         if (len == 0) {
             // Just an insert
             return insert(row, col, text)
@@ -108,7 +109,7 @@ class TextEditImpl(
 
         return if (len > 0) {
             // Delete then insert
-            val delText = textRightByte(row, col, len).joinToString("")
+            val delText = textRight(row, col, len).joinToString("")
             val del = createDeleteEdit(row, col, delText)
             val ins = createInsertEdit(row, col, text)
             val compound = Edit.Cmp(listOf(del, ins))
@@ -117,7 +118,7 @@ class TextEditImpl(
         } else {
             // Backspace then insert
             val absLen = -len
-            val delText = textLeftByte(row, col, absLen).joinToString("")
+            val delText = textLeft(row, col, absLen).joinToString("")
             val bs = createBackspaceEdit(row, col, delText)
 
             // Insert exactly where the backspace finished -> bs.min()
@@ -136,7 +137,7 @@ class TextEditImpl(
      * Undoes the last applied edit. Returns the cursor position(s) associated
      * with the undone edit(s).
      */
-    private fun undo(): List<Caret> {
+    private fun undo(): List<UserCaret> {
         flush()
         val edit = undoLast()
         return when (edit) {
@@ -150,7 +151,7 @@ class TextEditImpl(
      * Redoes the last undone edit. Returns the cursor position(s) associated
      * with the redone edit(s).
      */
-    private fun redo(): List<Caret> {
+    private fun redo(): List<UserCaret> {
         flush()
         val edit = redoLast()
         return when (edit) {
@@ -191,7 +192,7 @@ class TextEditImpl(
     /**
      * Gets text between cursor positions [start] and [end]. If [end] < [start], swap them.
      */
-    override fun getText(start: Caret, end: Caret): String {
+    override fun getText(start: UserCaret, end: UserCaret): String {
         var (sRow, sCol) = start
         var (eRow, eCol) = end
 
@@ -265,8 +266,8 @@ class TextEditImpl(
         return if (indexOfNewline < 0) {
             // The inserted text has no line break
             Edit.Insert(
-                Caret(row, col),
-                Caret(row, col + text.length),
+                UserCaret(row, col),
+                UserCaret(row, col + text.length),
                 text
             )
         } else {
@@ -275,8 +276,8 @@ class TextEditImpl(
             val newRow = row + additionalRows
             val newCol = text.substring(indexOfNewline + 1).length
             Edit.Insert(
-                Caret(row, col),
-                Caret(newRow, newCol),
+                UserCaret(row, col),
+                UserCaret(newRow, newCol),
                 text
             )
         }
@@ -286,7 +287,7 @@ class TextEditImpl(
      * Creates an [Edit.Delete] object that deletes [text] from ([row], [col]).
      */
     private fun createDeleteEdit(row: Int, col: Int, text: String): Edit.Delete {
-        return Edit.Delete(Caret(row, col), text)
+        return Edit.Delete(UserCaret(row, col), text)
     }
 
     /**
@@ -308,8 +309,8 @@ class TextEditImpl(
 
         // The *start* of deletion is (newRow,newCol); the *end* is the current (row,col)
         return Edit.Delete(
-            Caret(newRow, newCol),
-            Caret(row, col),
+            UserCaret(newRow, newCol),
+            UserCaret(row, col),
             text
         )
     }
@@ -449,7 +450,7 @@ class TextEditImpl(
 
     // region -- Text Extraction Helpers (Right / Left) ------------------------------
 
-    fun textRightByte(row: Int, col: Int, byteLen: Int): List<String> {
+    fun textRight(row: Int, col: Int, byteLen: Int): List<String> {
         var remainder = byteLen
         var currentCol = col
         val ret = mutableListOf<String>()
@@ -473,7 +474,7 @@ class TextEditImpl(
         return ret
     }
 
-    fun textLeftByte(row: Int, col: Int, byteLen: Int): List<String> {
+    fun textLeft(row: Int, col: Int, byteLen: Int): List<String> {
         var remainder = byteLen
         val ret = LinkedList<String>()
         var r = row
@@ -584,8 +585,8 @@ class TextEditImpl(
  * - [ConcreteEdit]: Abstract parent for [Insert] and [Delete]
  */
 sealed class Edit {
-    abstract fun min(): Caret
-    abstract fun max(): Caret
+    abstract fun min(): UserCaret
+    abstract fun max(): UserCaret
     abstract fun text(): String
     abstract fun flip(): Edit
 
@@ -598,23 +599,23 @@ sealed class Edit {
      * A base class for inserts and deletes that share `from()` and `to()` cursors.
      */
     abstract class ConcreteEdit : Edit() {
-        abstract fun from(): Caret
-        abstract fun to(): Caret
+        abstract fun from(): UserCaret
+        abstract fun to(): UserCaret
     }
 
     /**
      * An insertion edit from [fromPos] to [toPos] with inserted [txt].
      */
     data class Insert(
-        val fromPos: Caret,
-        val toPos: Caret,
+        val fromPos: UserCaret,
+        val toPos: UserCaret,
         val txt: String,
     ) : ConcreteEdit() {
 
-        override fun min(): Caret = fromPos
-        override fun max(): Caret = toPos
-        override fun from(): Caret = fromPos
-        override fun to(): Caret = toPos
+        override fun min(): UserCaret = fromPos
+        override fun max(): UserCaret = toPos
+        override fun from(): UserCaret = fromPos
+        override fun to(): UserCaret = toPos
         override fun text(): String = txt
 
         override fun flip(): Edit {
@@ -627,8 +628,8 @@ sealed class Edit {
      * A deletion edit from [fromPos] and optionally [toPos], removing [txt].
      */
     data class Delete(
-        val fromPos: Caret,
-        val toPos: Caret? = null,
+        val fromPos: UserCaret,
+        val toPos: UserCaret? = null,
         val txt: String
     ) : ConcreteEdit() {
 
@@ -636,13 +637,13 @@ sealed class Edit {
          * Internal fields to store the "min" and "max" among [fromPos] and [toPos].
          * This preserves the original logic for cursor positions.
          */
-        private val minPos: Caret
-        private val maxPos: Caret
+        private val minPos: UserCaret
+        private val maxPos: UserCaret
 
         /**
          * Additional constructor for [Delete] when only a single [Caret] is known.
          */
-        constructor(fromPos: Caret, txt: String) : this(fromPos, null, txt)
+        constructor(fromPos: UserCaret, txt: String) : this(fromPos, null, txt)
 
         init {
             val actualToPos = toPos ?: fromPos
@@ -655,10 +656,10 @@ sealed class Edit {
             }
         }
 
-        override fun min(): Caret = minPos
-        override fun max(): Caret = maxPos
-        override fun from(): Caret = fromPos
-        override fun to(): Caret = toPos ?: fromPos
+        override fun min(): UserCaret = minPos
+        override fun max(): UserCaret = maxPos
+        override fun from(): UserCaret = fromPos
+        override fun to(): UserCaret = toPos ?: fromPos
         override fun text(): String = txt
 
         override fun flip(): Edit {
@@ -677,8 +678,8 @@ sealed class Edit {
 
         fun edits(): List<ConcreteEdit> = list
 
-        override fun min(): Caret = list.minByOrNull { it.min() }?.min() ?: Caret(0, 0)
-        override fun max(): Caret = list.maxByOrNull { it.max() }?.max() ?: Caret(0, 0)
+        override fun min(): UserCaret = list.minByOrNull { it.min() }?.min() ?: UserCaret(0, 0)
+        override fun max(): UserCaret = list.maxByOrNull { it.max() }?.max() ?: UserCaret(0, 0)
         override fun text(): String = list.joinToString("") { it.text() }
 
         override fun flip(): Edit {

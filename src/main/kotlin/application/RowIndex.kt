@@ -1,59 +1,75 @@
 package org.editor.application
 
-class RowIndex private constructor(private val cacheInterval: Int) {
+/**
+ * Manages the mapping between byte positions and row/column positions.
+ *
+ */
+class RowIndex private constructor(
+    private val cacheInterval: Int,
+    private val newlineBytes: ByteArray
+) {
 
-    /** The row lengths. */
     private var rowLengths = intArrayOf(0)
-
-    /** The length of [rowLengths]. */
     private var length = 1
-
-    /** The sub-total cache. */
     private var subTotalCache = longArrayOf(0)
-
-    /** The sub-total cache length. */
     private var cacheLength = 1
 
     companion object {
-        /** Create a new [RowIndex] with the default cache interval of 100. */
-        fun create(): RowIndex = RowIndex(100)
-
-        /** Create a new [RowIndex] with the specified cache interval. */
-        fun create(cacheInterval: Int): RowIndex = RowIndex(cacheInterval)
+        /**
+         * Creates a new RowIndex using the default newline (platform newline) and cache interval 100.
+         */
+        fun create(): RowIndex = create(NewLine.platform.bytes(), 100)
 
         /**
-         * Converts the specified byte array to line-by-line byte lengths.
-         *
-         * For example, for bytes representing `"a\nbb\nccc"`, returns
-         * `[2, 3, 4]` (depending on whether `\n` is counted, etc.).
+         * Creates a new RowIndex using the default newline (platform newline) and the given cache interval.
          */
-        fun rows(bytes: ByteArray): IntArray {
+        fun create(cacheInterval: Int): RowIndex = create(NewLine.platform.bytes(), cacheInterval)
+
+        /**
+         * Creates a new RowIndex using the provided newline bytes and optional cache interval.
+         */
+        fun create(newlineBytes: ByteArray, cacheInterval: Int = 100): RowIndex =
+            RowIndex(cacheInterval, newlineBytes)
+
+        /**
+         * Splits the given byte array into an array of row lengths based on the provided newline sequence.
+         * Each returned row length includes any newline bytes that terminated the row.
+         */
+        fun rows(bytes: ByteArray, newlineBytes: ByteArray): IntArray {
             if (bytes.isEmpty())
                 return IntArray(0)
-
-            val intList = mutableListOf<Int>()
+            val rowLengths = mutableListOf<Int>()
             var count = 0
-            for (b in bytes) {
-                count++
-                if (b == '\n'.code.toByte()) {
-                    intList.add(count)
+            var index = 0
+            while (index < bytes.size) {
+                if (index + newlineBytes.size <= bytes.size &&
+                    newlineBytes.indices.all { bytes[index + it] == newlineBytes[it] }
+                ) {
+                    // Include the newline bytes in the current row's count.
+                    count += newlineBytes.size
+                    rowLengths.add(count)
                     count = 0
+                    index += newlineBytes.size
+                } else {
+                    count++
+                    index++
                 }
             }
-            // add remaining bytes after last newline
-            intList.add(count)
-            return intList.toIntArray()
+            rowLengths.add(count)
+            return rowLengths.toIntArray()
         }
+
+        /**
+         * Overload that uses the default newline (platform newline).
+         */
+        fun rows(bytes: ByteArray): IntArray = rows(bytes, NewLine.platform.bytes())
     }
 
-    /**
-     * Adds the specified byte array to the end of the index.
-     */
+    /** Adds the specified byte array to the end of the index. */
     fun add(bytes: ByteArray) {
         val rows = rows(bytes)
-        if (rows.isEmpty()) {
+        if (rows.isEmpty())
             return
-        }
 
         if (length + rows.size > rowLengths.size) {
             rowLengths = growRowLengths(length + rows.size)
@@ -77,22 +93,15 @@ class RowIndex private constructor(private val cacheInterval: Int) {
      */
     fun get(row: Int): Long {
         require(row in 0 until length) { "Row index out of bounds: $row" }
-
         var startRow = 0
         var startPos = 0L
-
-        // If we have a cache entry for some chunk, jump there
         val cacheIndex = row / cacheInterval
-        if (cacheIndex in 1..< cacheLength) {
+        if (cacheIndex in 1 until cacheLength) {
             startRow = cacheIndex * cacheInterval
             startPos = subTotalCache[cacheIndex]
         }
-
-        // Build partial sums up to 'row'
         for (i in startRow until minOf(length, row)) {
-            // if i is a multiple of cacheInterval, store prefix-sum in stCache
             if (i % cacheInterval == 0) {
-                // ensure there's room in stCache
                 if (cacheLength + 1 > subTotalCache.size) {
                     subTotalCache = growCache(cacheLength + 1)
                 }
@@ -100,6 +109,7 @@ class RowIndex private constructor(private val cacheInterval: Int) {
                 subTotalCache[chIndex] = startPos
                 cacheLength = chIndex + 1
             }
+
             startPos += rowLengths[i]
         }
 
@@ -107,16 +117,14 @@ class RowIndex private constructor(private val cacheInterval: Int) {
     }
 
     /**
-     * Inserts [bytes] at the given [row], [col].
+     * Inserts [bytes] at the given [row],[col].
      */
     fun insert(row: Int, col: Int, bytes: ByteArray) {
         require(row in 0 until length) { "Row index out of bounds: $row" }
         require(col in 0..rowLengths[row]) { "Column index out of bounds: $col" }
 
         val rows = rows(bytes)
-        if (rows.isEmpty()) {
-            return
-        }
+        if (rows.isEmpty()) return
 
         if (length + rows.size > rowLengths.size) {
             rowLengths = growRowLengths(length + rows.size)
@@ -131,20 +139,14 @@ class RowIndex private constructor(private val cacheInterval: Int) {
             // Insert across multiple rows
             val head = col + rows[0]
             val tail = (rowLengths[row] - col) + rows[rows.size - 1]
-
-            // shift existing rows downward
             System.arraycopy(
                 rowLengths, row + 1,
                 rowLengths, row + rows.size,
                 length - (row + 1)
             )
-
             rowLengths[row] = head
-            // copy the intermediate rows
-            // the last row will be set separately
             System.arraycopy(rows, 1, rowLengths, row + 1, rows.size - 2)
             rowLengths[row + rows.size - 1] = tail
-
             length += (rows.size - 1)
         }
     }
@@ -156,39 +158,27 @@ class RowIndex private constructor(private val cacheInterval: Int) {
         require(row in 0 until length) { "Row index out of bounds: $row" }
         require(col in 0..rowLengths[row]) { "Column index out of bounds: $col" }
         require(len >= 0) { "Length to delete must be non-negative" }
-
         if (len == 0) return
 
-        // same as Java
         cacheLength = row / cacheInterval
 
-        // If it fits fully in the row (i.e., within rowLengths[row]) => easy
         if ((rowLengths[row] - col) > len) {
             rowLengths[row] -= len
         } else {
-            // We do a “merge” if we remove the end of row + possibly more rows
             var remain = len - (rowLengths[row] - col)
             rowLengths[row] = col
-
             var lines = 0
             do {
-                if ((row + lines + 1) >= length)
-                    break
-
+                if ((row + lines + 1) >= length) break
                 remain -= rowLengths[row + ++lines]
             } while (remain >= 0)
-
-            // This merges leftover into row
             rowLengths[row] += (-remain)
-
-            // Remove the now-consumed rows
             if (lines > 0) {
                 System.arraycopy(
                     rowLengths, row + 1 + lines,
                     rowLengths, row + 1,
                     length - (row + 1 + lines)
                 )
-
                 length -= lines
             }
         }
@@ -199,7 +189,6 @@ class RowIndex private constructor(private val cacheInterval: Int) {
 
     /**
      * Returns the absolute “serial” offset corresponding to [row],[col].
-     * The offset is basically the sum of all rowLengths up to [row], plus [col].
      */
     fun serial(row: Int, col: Int): Long {
         require(row in 0 until length)
@@ -208,59 +197,48 @@ class RowIndex private constructor(private val cacheInterval: Int) {
     }
 
     /**
-     * Returns `[row, col]` for the given [serial] offset,
-     * using a binary search in [subTotalCache].
+     * Returns the row and column for the given serial offset.
      */
-    fun pos(serial: Long): IntArray {
+    fun pos(serial: Long): Pair<Int, Int> {
         require(serial >= 0) { "Serial position must be non-negative: $serial" }
-
-        val result = subTotalCache.binarySearch(serial, cacheLength)
-        return if (result >= 0) {
-            // Found exact prefix sum
-            intArrayOf(result * cacheInterval, 0)
+        val result = subTotalCache.binarySearch(serial, 0, cacheLength)
+        if (result >= 0) {
+            return Pair(result * cacheInterval, 0)
         } else {
             val point = maxOf(result.inv() - 1, 0)
             var st = subTotalCache[point]
             for (i in (point * cacheInterval) until length) {
                 val ln = rowLengths[i]
                 if (st + ln > serial) {
-                    return intArrayOf(i, (serial - st).toInt())
+                    return Pair(i, (serial - st).toInt())
                 }
                 st += ln
             }
-            // clamp to end
-            intArrayOf(length - 1, rowLengths[length - 1])
+            return Pair(length - 1, rowLengths[length - 1])
         }
     }
 
-    /** Returns a copy of [rowLengths] up to [length]. */
-    fun rowLengths(): IntArray {
-        return rowLengths.copyOf(length)
-    }
+    /** Returns a copy of [rowLengths] up to the current length. */
+    fun rowLengths(): IntArray = rowLengths.copyOf(length)
 
-    /** Returns a copy of [subTotalCache] up to [cacheLength]. */
-    fun stCache(): LongArray {
-        return subTotalCache.copyOf(cacheLength)
-    }
-
+    /** Returns a copy of [subTotalCache] up to the current cache length. */
+    fun stCache(): LongArray = subTotalCache.copyOf(cacheLength)
 
     private fun growRowLengths(minCapacity: Int): IntArray {
         val oldCap = rowLengths.size
-        return if (oldCap > 0) {
-            val newCap = minOf(maxOf(minCapacity, oldCap shr 1), Int.MAX_VALUE - 8)
-            rowLengths.copyOf(newCap)
-        } else {
-            IntArray(maxOf(100, minCapacity))
-        }.also { rowLengths = it }
+        val newCap = if (oldCap > 0)
+            minOf(maxOf(minCapacity, oldCap shl 1), Int.MAX_VALUE - 8)
+        else
+            maxOf(100, minCapacity)
+        return rowLengths.copyOf(newCap).also { rowLengths = it }
     }
 
     private fun growCache(minCapacity: Int): LongArray {
         val oldCap = subTotalCache.size
-        return if (oldCap > 0) {
-            val newCap = minOf(maxOf(minCapacity, oldCap shr 2), Int.MAX_VALUE - 8)
-            subTotalCache.copyOf(newCap)
-        } else {
-            LongArray(maxOf(10, minCapacity))
-        }.also { subTotalCache = it }
+        val newCap = if (oldCap > 0)
+            minOf(maxOf(minCapacity, oldCap shl 1), Int.MAX_VALUE - 8)
+        else
+            maxOf(10, minCapacity)
+        return subTotalCache.copyOf(newCap).also { subTotalCache = it }
     }
 }

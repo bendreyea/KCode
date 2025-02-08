@@ -3,8 +3,8 @@ package org.editor.presentation.components.textpane
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.launch
 import org.editor.ApplicationScope
-import org.editor.application.Caret
 import org.editor.application.TextEdit
+import org.editor.application.UserCaret
 import org.editor.syntax.HighlightInterval
 import org.editor.syntax.SyntaxHighlighter
 import java.util.concurrent.locks.ReentrantReadWriteLock
@@ -72,7 +72,7 @@ class TextPaneContent(private val textEdit: TextEdit) {
         return text
     }
 
-    fun getText(start: Caret, end: Caret): String = textEdit.getText(start, end)
+    fun getText(start: UserCaret, end: UserCaret): String = textEdit.getText(start, end)
 
     fun getMaxLineWidth() : Int  {
         return measureMaxLineWidth
@@ -126,7 +126,7 @@ class TextPaneContent(private val textEdit: TextEdit) {
         return sb.toString()
     }
 
-    fun delete(row: Int, col: Int): Caret {
+    fun delete(row: Int, col: Int): UserCaret {
         val prevTotalRows = rows()
         val caret = textEdit.delete(row, col)
         onTextChanged(row, caret.row, prevTotalRows)
@@ -134,7 +134,7 @@ class TextPaneContent(private val textEdit: TextEdit) {
         return caret
     }
 
-    fun backspace(row: Int, col: Int): Caret {
+    fun backspace(row: Int, col: Int): UserCaret {
         val prevTotalRows = rows()
         val cursor = textEdit.backspace(row, col)
         onTextChanged(row, cursor.row, prevTotalRows)
@@ -142,7 +142,7 @@ class TextPaneContent(private val textEdit: TextEdit) {
         return cursor
     }
 
-    fun insertChar(row: Int, col: Int, c: Char): Caret {
+    fun insertChar(row: Int, col: Int, c: Char): UserCaret {
         val prevTotalRows = rows()
         val cursor = textEdit.insert(row, col, c.toString())
         onTextChanged(row, cursor.row, prevTotalRows)
@@ -150,7 +150,7 @@ class TextPaneContent(private val textEdit: TextEdit) {
         return cursor
     }
 
-    fun insert(row: Int, col: Int, text: String): Caret {
+    fun insert(row: Int, col: Int, text: String): UserCaret {
         val prevRows = rows()
         val cursor = textEdit.insert(row, col, text)
         onTextChanged(row, cursor.row, prevRows)
@@ -158,7 +158,7 @@ class TextPaneContent(private val textEdit: TextEdit) {
         return cursor
     }
 
-    fun replace(row: Int, col: Int, len: Int, text: String): Caret {
+    fun replace(row: Int, col: Int, len: Int, text: String): UserCaret {
         val prevRows = rows()
         val cursor = textEdit.replace(row, col, len, text)
         onTextChanged(row, cursor.row, prevRows)

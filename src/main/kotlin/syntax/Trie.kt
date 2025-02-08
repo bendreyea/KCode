@@ -1,4 +1,4 @@
-package org.editor.core
+package org.editor.syntax
 
 /**
  * A Trie (prefix tree).

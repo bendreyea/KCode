@@ -47,6 +47,10 @@ enum class NewLine {
         }
     }
 
+    fun bytes(): ByteArray {
+        return str().toByteArray()
+    }
+
     companion object {
         /**
          * The platform-specific newline character(s).

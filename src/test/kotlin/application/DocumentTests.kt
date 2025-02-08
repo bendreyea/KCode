@@ -395,4 +395,68 @@ class DocumentTests {
         assertEquals(7, caret.col, "Column position should match input position.")
     }
 
+    /**
+     * Verifies that when a document is created with ISO-8859-1 encoding and Windows newline ("\r\n"),
+     * the inserted text is stored and retrieved correctly.
+     */
+    @Test
+    fun testDocumentImplWithISO8859AndWindowsNewline_insertionAndRetrieval() {
+        // Arrange: create a document with ISO-8859-1 and Windows newline ("\r\n")
+        val charset = Charset.forName("ISO-8859-1")
+        val windowsNewLine = NewLine.CRLF
+        val doc = DocumentImpl.create(
+            charset = charset,
+            bom = ByteArray(0),
+            newLine = windowsNewLine
+        )
+
+        // Insert text that uses characters specific to ISO-8859-1 and contains a Windows newline.
+        val text = "Café\r\nBistro"
+        doc.insert(0, 0, text)
+
+        // Act: retrieve rows from the document.
+        // With the configured newline, we expect:
+        //   Row 0: "Café\r\n"
+        //   Row 1: "Bistro"
+        val row0 = doc.getText(0)
+        val row1 = doc.getText(1)
+
+        // Assert
+        assertEquals("Café\r\n", row0, "Row 0 should include the Windows newline.")
+        assertEquals("Bistro", row1, "Row 1 should be 'Bistro'.")
+    }
+
+    /**
+     * Verifies that deleting the newline (the exact sequence "\r\n") correctly merges rows.
+     */
+    @Test
+    fun testDocumentImplDeletionOfWindowsNewline() {
+        // Arrange: create a document with ISO-8859-1 and Windows newline ("\r\n")
+        val charset = Charset.forName("ISO-8859-1")
+        val windowsNewLine = NewLine.CRLF
+        val doc = DocumentImpl.create(
+            charset = charset,
+            bom = ByteArray(0),
+            newLine = windowsNewLine
+        )
+
+        // Insert text with two lines separated by CRLF.
+        // Expect two rows: "Hello\r\n" and "World"
+        val text = "Hello\r\nWorld"
+        doc.insert(0, 0, text)
+
+        // Act:
+        // Delete exactly the document's newline sequence from the start of row 1.
+        // The special-case deletion logic should remove the CRLF from the end of row 0,
+        // merging the two rows.
+        doc.delete(1, 0, "\r\n")
+
+        // After deletion the document should contain a single merged row.
+        val remainingText = doc.getText(0)
+
+        // Assert:
+        assertEquals("HelloWorld", remainingText, "After deletion of CRLF, the lines should merge.")
+        assertEquals(1, doc.rows(), "There should be 1 row after deletion of the newline.")
+    }
+
 }

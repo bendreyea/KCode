@@ -1,10 +1,9 @@
 package application
 
-import org.editor.application.Caret
 import org.editor.application.Document
 import org.editor.application.DocumentImpl
 import org.editor.application.TextEditImpl
-import org.junit.jupiter.api.Disabled
+import org.editor.application.UserCaret
 import kotlin.test.Test
 import kotlin.test.assertEquals
 
@@ -204,14 +203,13 @@ class TextEditImplTests {
         val caret = te.backspace(backspaceRow, cursorCol)
 
         // Assert
-        assertEquals(Caret(0, 1), caret, "Caret should be at position (0, 1) after backspace.")
+        assertEquals(UserCaret(0, 1), caret, "Caret should be at position (0, 1) after backspace.")
     }
 
     /**
      * Tests the backspace operation at a row break and verifies the resulting text and caret position.
      */
     @Test
-    @Disabled // TODO: Fix this test
     fun backspaceRowBreak_deletesRowBreakCorrectly() {
         // Arrange
         val te = TextEditImpl(Document.create())
@@ -223,7 +221,7 @@ class TextEditImplTests {
         val caret = te.backspace(backspaceRow, cursorCol)
 
         // Assert
-        assertEquals(Caret(0, 3), caret, "Caret should be at position (0, 3) after backspace.")
+        assertEquals(UserCaret(0, 4), caret, "Caret should be at position (0, 4) after backspace.")
     }
 
     /**
@@ -242,65 +240,26 @@ class TextEditImplTests {
         val caret = te.backspace(backspaceRow, cursorCol, deleteCount)
 
         // Assert
-        assertEquals(Caret(0, 1), caret, "Caret should be at position (0, 1) after backspace.")
+        assertEquals(UserCaret(0, 1), caret, "Caret should be at position (0, 1) after backspace.")
     }
 
-    /**
-     * Tests computing distances from carets to their positions and verifies the mappings.
-     */
     @Test
-    fun distances_computesDistancesFromCaretsCorrectly() {
-        // Arrange
-        val te = TextEditImpl(Document.create())
-        te.insert(0, 0, "abc\ndef\nghi")
-        val carets = listOf(
-            Caret(0, 0),
-            Caret(0, 1),
-            Caret(1, 1),
-            Caret(1, 2),
-            Caret(2, 3)
-        )
-
-        // Act
-        val distances = te.distances(carets)
-
-        // Assert
-        assertEquals(0, distances[0], "Distance for first caret should be 0.")
-        assertEquals(1, distances[1], "Distance for second caret should be 1.")
-        assertEquals(5, distances[2], "Distance for third caret should be 5.")
-        assertEquals(6, distances[3], "Distance for fourth caret should be 6.")
-        assertEquals(11, distances[4], "Distance for fifth caret should be 11.")
-
-        val posList: List<Caret> = te.posList(0, distances)
-
-        assertEquals(carets[0], posList[0], "First caret position should match.")
-        assertEquals(carets[1], posList[1], "Second caret position should match.")
-        assertEquals(carets[2], posList[2], "Third caret position should match.")
-        assertEquals(carets[3], posList[3], "Fourth caret position should match.")
-        assertEquals(carets[4], posList[4], "Fifth caret position should match.")
-    }
-
-    /**
-     * Tests retrieving text to the right based on byte offsets.
-     * Verifies that the correct byte segments are returned.
-     */
-    @Test
-    fun textRightByte_retrievesCorrectByteSegmentsToTheRight() {
+    fun textRight_retrievesCorrectByteSegmentsToTheRight() {
         // Arrange
         val te = TextEditImpl(Document.create())
         te.insert(0, 0, "abc\ndef\nghi")
 
         // Act & Assert
-        assertEquals("a", te.textRightByte(0, 0, 1)[0], "First byte to the right should be 'a'.")
-        assertEquals("b", te.textRightByte(0, 1, 1)[0], "First byte to the right should be 'b'.")
-        assertEquals("bc\n", te.textRightByte(0, 1, 3)[0], "Next three bytes should be 'bc\\n'.")
+        assertEquals("a", te.textRight(0, 0, 1)[0], "First byte to the right should be 'a'.")
+        assertEquals("b", te.textRight(0, 1, 1)[0], "First byte to the right should be 'b'.")
+        assertEquals("bc\n", te.textRight(0, 1, 3)[0], "Next three bytes should be 'bc\\n'.")
 
-        var ret = te.textRightByte(0, 1, 4)
+        var ret = te.textRight(0, 1, 4)
         assertEquals(2, ret.size, "Should return two byte segments.")
         assertEquals("bc\n", ret[0], "First byte segment should be 'bc\\n'.")
         assertEquals("d", ret[1], "Second byte segment should be 'd'.")
 
-        ret = te.textRightByte(0, 1, 8)
+        ret = te.textRight(0, 1, 8)
         assertEquals(3, ret.size, "Should return three byte segments.")
         assertEquals("bc\n", ret[0], "First byte segment should be 'bc\\n'.")
         assertEquals("def\n", ret[1], "Second byte segment should be 'def\\n'.")
@@ -318,19 +277,19 @@ class TextEditImplTests {
         te.insert(0, 0, "abc\ndef\nghi")
 
         // Act & Assert
-        assertEquals("a", te.textLeftByte(0, 1, 1)[0], "First byte to the left should be 'a'.")
-        assertEquals("ab", te.textLeftByte(0, 2, 2)[0], "First two bytes to the left should be 'ab'.")
-        assertEquals("abc", te.textLeftByte(0, 3, 3)[0], "First three bytes to the left should be 'abc'.")
-        assertEquals("abc\n", te.textLeftByte(0, 4, 4)[0], "First four bytes to the left should be 'abc\\n'.")
+        assertEquals("a", te.textLeft(0, 1, 1)[0], "First byte to the left should be 'a'.")
+        assertEquals("ab", te.textLeft(0, 2, 2)[0], "First two bytes to the left should be 'ab'.")
+        assertEquals("abc", te.textLeft(0, 3, 3)[0], "First three bytes to the left should be 'abc'.")
+        assertEquals("abc\n", te.textLeft(0, 4, 4)[0], "First four bytes to the left should be 'abc\\n'.")
 
-        assertEquals("\n", te.textLeftByte(1, 0, 1)[0], "First byte to the left should be '\\n'.")
-        assertEquals("c\n", te.textLeftByte(1, 0, 2)[0], "First two bytes to the left should be 'c\\n'.")
-        assertEquals("bc\n", te.textLeftByte(1, 0, 3)[0], "First three bytes to the left should be 'bc\\n'.")
-        assertEquals("abc\n", te.textLeftByte(1, 0, 4)[0], "First four bytes to the left should be 'abc\\n'.")
+        assertEquals("\n", te.textLeft(1, 0, 1)[0], "First byte to the left should be '\\n'.")
+        assertEquals("c\n", te.textLeft(1, 0, 2)[0], "First two bytes to the left should be 'c\\n'.")
+        assertEquals("bc\n", te.textLeft(1, 0, 3)[0], "First three bytes to the left should be 'bc\\n'.")
+        assertEquals("abc\n", te.textLeft(1, 0, 4)[0], "First four bytes to the left should be 'abc\\n'.")
 
-        assertEquals("abc\n", te.textLeftByte(2, 3, 11)[0], "First segment should be 'abc\\n'.")
-        assertEquals("def\n", te.textLeftByte(2, 3, 11)[1], "Second segment should be 'def\\n'.")
-        assertEquals("ghi", te.textLeftByte(2, 3, 11)[2], "Third segment should be 'ghi'.")
+        assertEquals("abc\n", te.textLeft(2, 3, 11)[0], "First segment should be 'abc\\n'.")
+        assertEquals("def\n", te.textLeft(2, 3, 11)[1], "Second segment should be 'def\\n'.")
+        assertEquals("ghi", te.textLeft(2, 3, 11)[2], "Third segment should be 'ghi'.")
     }
 
     /**

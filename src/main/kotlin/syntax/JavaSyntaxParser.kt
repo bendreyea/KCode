@@ -11,6 +11,7 @@ enum class TokenType {
     SYMBOL,      // Punctuation, operators
     WHITESPACE,  // Spaces, tabs, line breaks
     UNKNOWN,
+    ERROR,
 
     // -- Bracket tokens with 3 colors:
     BRACKET_LEVEL_0,

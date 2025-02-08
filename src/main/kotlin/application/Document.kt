@@ -69,9 +69,9 @@ interface Document {
      * Retrieves the row and column position based on the given serial position.
      *
      * @param serial The serial position.
-     * @return The [Caret] representing the row and column.
+     * @return The [UserCaret] representing the row and column.
      */
-    fun pos(serial: Long): Caret
+    fun pos(serial: Long): UserCaret
 
     /**
      * Retrieves the charset used by this [Document].
@@ -93,6 +93,9 @@ interface Document {
      * @return The BOM as a byte array. If there is no BOM, returns an empty byte array.
      */
     fun bom(): ByteArray
+
+    fun charOffsetToByteOffset(row: Int, charOffset: Int): Int
+    fun byteOffsetToCharOffset(row: Int, byteOffset: Int): Int
 
     /**
      * Factory methods for creating instances of [Document].
