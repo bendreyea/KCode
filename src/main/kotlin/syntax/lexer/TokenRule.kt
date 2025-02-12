@@ -1,4 +1,4 @@
-package org.editor.syntax
+package org.editor.syntax.lexer
 
 
 interface TokenRule {
@@ -31,11 +31,15 @@ object BlockCommentRule : TokenRule {
             while (lexer.pos < lexer.text.length) {
                 if (lexer.currentChar() == '*' && lexer.lookAhead(1) == '/') {
                     lexer.advance(2)
-                    break
+                    // We’re now outside the block comment.
+                    lexer.state = LexerState.DEFAULT
+                    return Token.CommentToken(start, lexer.pos, lexer.text.substring(start, lexer.pos))
                 } else {
                     lexer.advance()
                 }
             }
+            // Reaching here means we hit end-of-line/text without closing.
+            lexer.state = LexerState.IN_BLOCK_COMMENT
             return Token.CommentToken(start, lexer.pos, lexer.text.substring(start, lexer.pos))
         }
         return null
@@ -46,17 +50,20 @@ object StringLiteralRule : TokenRule {
     override fun match(lexer: Lexer): Token? {
         if (lexer.currentChar() != '"') return null
         val start = lexer.pos
-        lexer.advance() // skip the opening quote
+        lexer.advance() // skip opening quote
         while (lexer.pos < lexer.text.length) {
             when (lexer.currentChar()) {
-                '\\' -> lexer.advance(2) // handle escape sequences by skipping both characters
+                '\\' -> lexer.advance(2)
                 '"' -> {
-                    lexer.advance() // consume the closing quote
-                    break
+                    lexer.advance() // closing quote found
+                    lexer.state = LexerState.DEFAULT
+                    return Token.StringToken(start, lexer.pos, lexer.text.substring(start, lexer.pos))
                 }
                 else -> lexer.advance()
             }
         }
+        // If we get here, no closing quote was found.
+        lexer.state = LexerState.IN_STRING
         return Token.StringToken(start, lexer.pos, lexer.text.substring(start, lexer.pos))
     }
 }
@@ -87,29 +94,24 @@ object IdentifierRule : TokenRule {
     override fun match(lexer: Lexer): Token? {
         if (!lexer.currentChar().isLetter() && lexer.currentChar() != '_') return null
         val start = lexer.pos
-        while (lexer.pos < lexer.text.length && (lexer.currentChar().isLetterOrDigit() || lexer.currentChar() == '_')) {
+        while (lexer.pos < lexer.text.length &&
+            (lexer.currentChar().isLetterOrDigit() || lexer.currentChar() == '_')) {
             lexer.advance()
         }
-        val lexeme = lexer.text.substring(start, lexer.pos)
-        // Here you can decide whether this is a keyword (by checking against a keyword set)
-        return Token.IdentifierToken(start, lexer.pos, lexeme)
+        return Token.IdentifierToken(start, lexer.pos, lexer.text.substring(start, lexer.pos))
     }
 }
 
 object BracketRule : TokenRule {
-    // These are the open and closing bracket characters.
     private val openBrackets = setOf('(', '{', '[')
     private val closeBrackets = setOf(')', '}', ']')
-
     override fun match(lexer: Lexer): Token? {
         val ch = lexer.currentChar()
         if (ch in openBrackets) {
             val start = lexer.pos
-            // Calculate color index based on current nesting.
             val colorIndex = lexer.bracketStack.size % 3
-            // Push an entry onto the bracket stack.
-            lexer.bracketStack.addLast(BracketInfo(ch, start, 1, colorIndex))
-            lexer.advance() // Consume the bracket.
+            lexer.bracketStack.addLast(BracketInfo(ch, start, lexer.bracketStack.size + 1, colorIndex))
+            lexer.advance()
             val tokenType = when (colorIndex) {
                 0 -> TokenType.BRACKET_LEVEL_0
                 1 -> TokenType.BRACKET_LEVEL_1
@@ -119,11 +121,9 @@ object BracketRule : TokenRule {
         }
         if (ch in closeBrackets) {
             val start = lexer.pos
-            // Check if we have a matching open bracket.
             if (lexer.bracketStack.isNotEmpty()) {
                 val last = lexer.bracketStack.last()
                 if (isMatchingPair(last.char, ch)) {
-                    // Matching bracket found: pop the open bracket.
                     lexer.bracketStack.removeLast()
                     val colorIndex = last.nestingColorIndex
                     val tokenType = when (colorIndex) {
@@ -135,11 +135,10 @@ object BracketRule : TokenRule {
                     return Token.BracketToken(start, lexer.pos, ch, colorIndex, tokenType)
                 }
             }
-            // If no matching open bracket, treat it as a generic symbol (or you might want to return an error).
+            // No matching open bracket: treat as a symbol.
             lexer.advance()
             return Token.SymbolToken(start, lexer.pos, ch)
         }
-
         return null
     }
 
@@ -149,17 +148,43 @@ object BracketRule : TokenRule {
                 (open == '[' && close == ']')
 }
 
-
 object SymbolRule : TokenRule {
     override fun match(lexer: Lexer): Token? {
-        // This rule is a fallback for symbols like operators or punctuation.
         val ch = lexer.currentChar()
         if (!ch.isLetterOrDigit() && !ch.isWhitespace()) {
             val start = lexer.pos
             lexer.advance()
             return Token.SymbolToken(start, lexer.pos, ch)
         }
+        return null
+    }
+}
 
+object KeywordRule : TokenRule {
+    private val keywords = setOf(
+        "abstract", "assert", "boolean", "break", "byte", "case", "catch", "char",
+        "class", "const", "continue", "default", "do", "double", "else", "enum",
+        "extends", "final", "finally", "float", "for", "goto", "if", "implements",
+        "import", "instanceof", "int", "interface", "long", "native", "new",
+        "package", "private", "protected", "public", "record", "return",
+        "sealed", "short", "static", "strictfp", "super", "switch",
+        "synchronized", "this", "throw", "throws", "transient", "try",
+        "var", "volatile", "while", "yield"
+    )
+    override fun match(lexer: Lexer): Token? {
+        if (!lexer.currentChar().isLetter() && lexer.currentChar() != '_')
+            return null
+        val start = lexer.pos
+        var tempPos = lexer.pos
+        while (tempPos < lexer.text.length &&
+            (lexer.text[tempPos].isLetterOrDigit() || lexer.text[tempPos] == '_')) {
+            tempPos++
+        }
+        val lexeme = lexer.text.substring(start, tempPos)
+        if (lexeme in keywords) {
+            lexer.pos = tempPos
+            return Token.KeywordToken(start, tempPos, lexeme)
+        }
         return null
     }
 }

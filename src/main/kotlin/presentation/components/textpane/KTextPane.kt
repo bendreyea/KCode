@@ -3,8 +3,8 @@ package org.editor.presentation.components.textpane
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.editor.ApplicationScope
-import org.editor.application.UserCaret
-import org.editor.presentation.components.SwingDispatchers
+import org.editor.SwingDispatchers
+import org.editor.application.common.UserCaret
 import java.awt.*
 import java.awt.event.MouseAdapter
 import java.awt.event.MouseEvent

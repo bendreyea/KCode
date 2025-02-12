@@ -1,9 +1,9 @@
-package org.editor.application
+package org.editor.application.common
 
 /**
  * Represents different types of newline (line ending) characters.
  */
-enum class NewLine {
+enum class LineSeparator {
 
     /**
      * Line Feed (`\n`).
@@ -55,7 +55,7 @@ enum class NewLine {
         /**
          * The platform-specific newline character(s).
          */
-        val platform: NewLine by lazy { determinePlatformNewLine() }
+        val platform: LineSeparator by lazy { determinePlatformNewLine() }
 
         /**
          * Estimates the most likely `NewLine` type based on counts of carriage returns and line feeds.
@@ -64,7 +64,7 @@ enum class NewLine {
          * @param lfCount The number of line feed characters (`\n`).
          * @return The estimated `NewLine` type.
          */
-        fun estimate(crCount: Int, lfCount: Int): NewLine {
+        fun estimate(crCount: Int, lfCount: Int): LineSeparator {
             return when {
                 crCount == 0 && lfCount == 0 -> platform
                 crCount == lfCount -> CRLF
@@ -78,7 +78,7 @@ enum class NewLine {
          *
          * @return The corresponding `NewLine` enum value.
          */
-        private fun determinePlatformNewLine(): NewLine {
+        private fun determinePlatformNewLine(): LineSeparator {
             return when (System.lineSeparator()) {
                 "\r" -> CR
                 "\r\n" -> CRLF

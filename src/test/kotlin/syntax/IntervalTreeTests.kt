@@ -102,4 +102,74 @@ class IntervalTreeTests {
         assertEquals(interval2, iterator.next())
         assertFalse(iterator.hasNext())
     }
+
+    data class TestInterval(override val start: Int, override val end: Int) : Comparable<Interval>, Interval {
+        fun compareTo(other: TestInterval): Int {
+            return compareValuesBy(this, other, { it.start }, { it.end })
+        }
+    }
+
+    @Test
+    fun `queryOverlapping - single exact match`() {
+        val tree = IntervalTree<TestInterval>()
+        val interval = TestInterval(5, 10)
+        tree.insert(interval)
+
+        val result = tree.queryOverlapping(5, 10)
+        assertEquals(listOf(interval), result)
+    }
+
+    @Test
+    fun `queryOverlapping - multiple overlapping intervals`() {
+        val tree = IntervalTree<TestInterval>()
+        val interval1 = TestInterval(1, 5)
+        val interval2 = TestInterval(4, 10)
+        val interval3 = TestInterval(6, 15)
+        tree.insert(interval1)
+        tree.insert(interval2)
+        tree.insert(interval3)
+
+        val result = tree.queryOverlapping(3, 7)
+        assertTrue(result.containsAll(listOf(interval1, interval2, interval3)))
+    }
+
+    @Test
+    fun `queryOverlapping - no overlapping intervals`() {
+        val tree = IntervalTree<TestInterval>()
+        tree.insert(TestInterval(1, 5))
+        tree.insert(TestInterval(10, 15))
+
+        val result = tree.queryOverlapping(6, 9)
+        assertTrue(result.isEmpty())
+    }
+
+    @Test
+    fun `queryOverlapping - exact boundary overlap`() {
+        val tree = IntervalTree<TestInterval>()
+        val interval = TestInterval(5, 10)
+        tree.insert(interval)
+
+        val result = tree.queryOverlapping(11, 15)
+        assertTrue(result.isEmpty())
+    }
+
+    @Test
+    fun `queryOverlapping - overlapping at end boundary`() {
+        val tree = IntervalTree<TestInterval>()
+        val interval = TestInterval(5, 10)
+        tree.insert(interval)
+
+        val result = tree.queryOverlapping(8, 12)
+        assertEquals(listOf(interval), result)
+    }
+
+    @Test
+    fun `queryOverlapping - query range fully encloses an interval`() {
+        val tree = IntervalTree<TestInterval>()
+        val interval = TestInterval(5, 10)
+        tree.insert(interval)
+
+        val result = tree.queryOverlapping(0, 15)
+        assertEquals(listOf(interval), result)
+    }
 }

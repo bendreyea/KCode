@@ -1,6 +1,6 @@
 package org.editor.presentation.components.textpane
 
-import org.editor.application.UserCaret
+import org.editor.application.common.UserCaret
 
 /**
  * Interface for listening to caret movement events.

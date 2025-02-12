@@ -1,7 +1,7 @@
 package syntax.tokenRules
 
-import org.editor.syntax.SingleLineCommentRule
-import org.editor.syntax.Token
+import org.editor.syntax.lexer.SingleLineCommentRule
+import org.editor.syntax.lexer.Token
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNotNull

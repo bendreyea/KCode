@@ -1,13 +1,16 @@
-package org.editor.syntax
+package org.editor.syntax.lexer
 
-class Lexer(val text: CharSequence, private val rules: List<TokenRule> = defaultRules()) {
-    var pos: Int = 0
-        private set
-
+class Lexer(
+    val text: CharSequence,
+    private val rules: List<TokenRule> = defaultRules(),
+    var state: LexerState = LexerState.DEFAULT,
     val bracketStack: ArrayDeque<BracketInfo> = ArrayDeque()
+) {
+    var pos: Int = 0
 
     companion object {
         fun defaultRules(): List<TokenRule> = listOf(
+            KeywordRule,
             BlockCommentRule,
             SingleLineCommentRule,
             StringLiteralRule,
@@ -15,7 +18,7 @@ class Lexer(val text: CharSequence, private val rules: List<TokenRule> = default
             NumberRule,
             IdentifierRule,
             BracketRule,
-            SymbolRule
+            SymbolRule,
         )
     }
 
@@ -28,28 +31,41 @@ class Lexer(val text: CharSequence, private val rules: List<TokenRule> = default
         pos += n
     }
 
-    fun tokenize(start: Int, end: Int): List<Token> {
+    /** Lexes the entire text of (for example) one source line. */
+    fun tokenizeLine(): List<Token> {
         val tokens = mutableListOf<Token>()
-        pos = start
-        while (pos < end) {
+        while (pos < text.length) {
             var token: Token? = null
-
-            // Try each rule in order.
             for (rule in rules) {
                 token = rule.match(this)
-                if (token != null)
-                    break
+                if (token != null) break
             }
-
             if (token == null) {
-                // If no rule applies, produce an error token and consume one character.
                 token = Token.ErrorToken(pos, pos + 1, "Unexpected character '${currentChar()}'")
                 advance()
             }
-
             tokens.add(token)
         }
 
+        return tokens
+    }
+
+    /** Standard multi‑line tokenize (if needed). */
+    fun tokenize(start: Int, end: Int): List<Token> {
+        pos = start
+        val tokens = mutableListOf<Token>()
+        while (pos < end) {
+            var token: Token? = null
+            for (rule in rules) {
+                token = rule.match(this)
+                if (token != null) break
+            }
+            if (token == null) {
+                token = Token.ErrorToken(pos, pos + 1, "Unexpected character '${currentChar()}'")
+                advance()
+            }
+            tokens.add(token)
+        }
         return tokens
     }
 }

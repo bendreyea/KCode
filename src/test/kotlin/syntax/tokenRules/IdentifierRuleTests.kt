@@ -1,7 +1,7 @@
 package syntax.tokenRules
 
-import org.editor.syntax.IdentifierRule
-import org.editor.syntax.Token
+import org.editor.syntax.lexer.IdentifierRule
+import org.editor.syntax.lexer.Token
 import kotlin.test.*
 
 class IdentifierRuleTests {

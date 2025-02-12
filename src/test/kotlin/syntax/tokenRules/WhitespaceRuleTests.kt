@@ -1,7 +1,7 @@
 package syntax.tokenRules
 
-import org.editor.syntax.Token
-import org.editor.syntax.WhitespaceRule
+import org.editor.syntax.lexer.Token
+import org.editor.syntax.lexer.WhitespaceRule
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNotNull

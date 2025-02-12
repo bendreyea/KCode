@@ -13,10 +13,14 @@ repositories {
 dependencies {
     testImplementation(kotlin("test"))
     val mockkVersion = "1.13.16"
+    val coroutineVersion = "1.10.1"
     testImplementation("io.mockk:mockk:${mockkVersion}")
-    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.10.1")
-    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-swing:1.10.1")
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:${coroutineVersion}")
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-swing:${coroutineVersion}")
     implementation("org.jetbrains.kotlinx:kotlinx-benchmark-runtime:0.4.7")
+    testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:${coroutineVersion}")
+
+
 }
 
 tasks.test {

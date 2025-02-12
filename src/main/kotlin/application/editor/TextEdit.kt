@@ -1,5 +1,7 @@
-package org.editor.application
+package org.editor.application.editor
 
+import org.editor.application.common.UserCaret
+import org.editor.application.common.LineSeparator
 import java.nio.charset.Charset
 
 /**
@@ -14,7 +16,7 @@ interface TextEdit {
      * @param text The text to insert.
      * @return The new cursor position after insertion.
      */
-    fun insert(row: Int, col: Int, text: String): UserCaret
+    fun insert(row: Int, col: Int, text: CharSequence): UserCaret
 
     /**
      * Deletes [len] characters starting at the specified position ([row], [col]),
@@ -47,7 +49,7 @@ interface TextEdit {
      * @param text The text to insert in place of the replaced characters.
      * @return The cursor position after replacement.
      */
-    fun replace(row: Int, col: Int, len: Int, text: String): UserCaret
+    fun replace(row: Int, col: Int, len: Int, text: CharSequence): UserCaret
 
     /**
      * Retrieves the text at the specified [row].
@@ -79,4 +81,16 @@ interface TextEdit {
      * @return The character set.
      */
     fun charset(): Charset
+
+    fun addEditorListener(listener: EditorChangeListener)
+
+    fun undo() : List<UserCaret>
+
+    fun redo() : List<UserCaret>
+
+    fun rowEnding(): LineSeparator
+
+    fun getVersion(): Int
+
+    fun serial(row: Int, col: Int): Long
 }

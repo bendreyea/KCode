@@ -3,7 +3,7 @@ package presentation
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.verify
-import org.editor.application.UserCaret
+import org.editor.application.common.UserCaret
 import org.editor.presentation.components.textpane.EditorTheme
 import org.editor.presentation.components.textpane.KTextEditorController
 import org.editor.presentation.components.textpane.TextPaneContent

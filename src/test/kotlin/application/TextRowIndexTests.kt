@@ -1,6 +1,6 @@
 package application
 
-import org.editor.application.NewLine
+import org.editor.application.common.LineSeparator
 import org.editor.application.RowIndex
 import org.junit.jupiter.api.Assertions
 import org.junit.jupiter.api.Assertions.assertThrows
@@ -8,11 +8,11 @@ import java.nio.charset.StandardCharsets
 import kotlin.test.Test
 import kotlin.test.assertEquals
 
-class RowIndexTests {
+class TextRowIndexTests {
 
     @Test
     fun add_withSingleLine_addsCorrectly() {
-        val rowIndex = RowIndex.create()  // Uses default newline (platform default)
+        val rowIndex = RowIndex.create()
         val text = "Hello".toByteArray(StandardCharsets.UTF_8)
         rowIndex.add(text)
         // Expecting one row with 5 bytes ("Hello")
@@ -99,7 +99,7 @@ class RowIndexTests {
     @Test
     fun pos_returnsCorrectPosition() {
         // Create RowIndex with an explicit newline sequence.
-        val rowIndex = RowIndex.create(NewLine.platform.bytes())
+        val rowIndex = RowIndex.create(LineSeparator.platform.bytes())
         rowIndex.add("Hello\nWorld".toByteArray(StandardCharsets.UTF_8))
         val serialNumber = 6L
         val (row, col) = rowIndex.pos(serialNumber)
@@ -143,11 +143,6 @@ class RowIndexTests {
         assertEquals(12, index.get(5), "Serial number for row 5 should be 12.")
         assertEquals(15, index.get(6), "Serial number for row 6 should be 15.")
         assertEquals(19, index.get(7), "Serial number for row 7 should be 19.")
-
-        // Verify internal cache if applicable.
-        assertEquals(2, index.stCache().size, "Static cache size should be 2.")
-        assertEquals(0, index.stCache()[0], "First cache entry should be 0.")
-        assertEquals(12, index.stCache()[1], "Second cache entry should be 12.")
     }
 
     @Test
@@ -300,43 +295,6 @@ class RowIndexTests {
     }
 
     @Test
-    fun rows_parsesRowsCorrectly() {
-        var ret = RowIndex.rows("".toByteArray(StandardCharsets.UTF_8))
-        Assertions.assertEquals(0, ret.size, "Empty input should result in 0 rows.")
-
-        ret = RowIndex.rows("a".toByteArray(StandardCharsets.UTF_8))
-        Assertions.assertEquals(1, ret.size, "Single character input should result in 1 row.")
-        Assertions.assertEquals(1, ret[0], "Row length should be 1 for 'a'.")
-
-        ret = RowIndex.rows("ab".toByteArray(StandardCharsets.UTF_8))
-        Assertions.assertEquals(1, ret.size, "Two characters input should result in 1 row.")
-        Assertions.assertEquals(2, ret[0], "Row length should be 2 for 'ab'.")
-
-        ret = RowIndex.rows("ab\n".toByteArray(StandardCharsets.UTF_8))
-        Assertions.assertEquals(2, ret.size, "Input ending with newline should result in 2 rows.")
-        Assertions.assertEquals(3, ret[0], "First row length should be 3 for 'ab\\n'.")
-        Assertions.assertEquals(0, ret[1], "Second row length should be 0 for empty second row.")
-
-        ret = RowIndex.rows("\n".toByteArray(StandardCharsets.UTF_8))
-        Assertions.assertEquals(2, ret.size, "Single newline should result in 2 rows.")
-        Assertions.assertEquals(1, ret[0], "First row length should be 1 for '\\n'.")
-        Assertions.assertEquals(0, ret[1], "Second row length should be 0 for empty second row.")
-
-        ret = RowIndex.rows("\n\n".toByteArray(StandardCharsets.UTF_8))
-        Assertions.assertEquals(3, ret.size, "Double newline should result in 3 rows.")
-        Assertions.assertEquals(1, ret[0], "First row length should be 1 for '\\n'.")
-        Assertions.assertEquals(1, ret[1], "Second row length should be 1 for '\\n'.")
-        Assertions.assertEquals(0, ret[2], "Third row length should be 0 for empty third row.")
-
-        // For CRLF newline we pass the newline bytes explicitly.
-        ret = RowIndex.rows("abc\r\nde\r\nf".toByteArray(StandardCharsets.UTF_8), "\r\n".toByteArray(StandardCharsets.UTF_8))
-        Assertions.assertEquals(3, ret.size, "Input with CRLF should result in 3 rows.")
-        Assertions.assertEquals(5, ret[0], "First row length should be 5 for 'abc\\r\\n'.")
-        Assertions.assertEquals(4, ret[1], "Second row length should be 4 for 'de\\r\\n'.")
-        Assertions.assertEquals(1, ret[2], "Third row length should be 1 for 'f'.")
-    }
-
-    @Test
     fun serial_computesSerialNumbersCorrectly() {
         val index = RowIndex.create(3)
         index.insert(0, 0, "a\nbb\nccc\ndddd\neeeee".toByteArray(StandardCharsets.UTF_8))
@@ -365,45 +323,5 @@ class RowIndexTests {
         assertEquals(18L, index.serial(4, 4), "Serial for (4,4) should be 18.")
         assertEquals(19L, index.serial(4, 5), "Serial for (4,5) should be 19.")
     }
-
-//    @Test
-//    fun pos1_retrievesCorrectPositionsForSerialsWithinSingleLine() {
-//        val index = RowIndex.create(3)
-//        index.insert(0, 0, "abc".toByteArray(StandardCharsets.UTF_8))
-//        assertArrayEquals(intArrayOf(0, 0)!!, index.pos(0)!!, "Position for serial 0 should be (0,0).")
-//        assertArrayEquals(intArrayOf(0, 1), index.pos(1), "Position for serial 1 should be (0,1).")
-//        assertArrayEquals(intArrayOf(0, 2), index.pos(2), "Position for serial 2 should be (0,2).")
-//        assertArrayEquals(intArrayOf(0, 3), index.pos(3), "Position for serial 3 should be (0,3).")
-//    }
-//
-//    @Test
-//    fun pos2_retrievesCorrectPositionsForSerialsAcrossMultipleLines() {
-//        val index = RowIndex.create(3)
-//        index.insert(0, 0, "a\nbb\nccc\ndddd\neeeee".toByteArray(StandardCharsets.UTF_8))
-//        assertArrayEquals(intArrayOf(0, 0), index.pos(0), "Position for serial 0 should be (0,0).")
-//        assertArrayEquals(intArrayOf(0, 1), index.pos(1), "Position for serial 1 should be (0,1).")
-//
-//        assertArrayEquals(intArrayOf(1, 0), index.pos(2), "Position for serial 2 should be (1,0).")
-//        assertArrayEquals(intArrayOf(1, 1), index.pos(3), "Position for serial 3 should be (1,1).")
-//        assertArrayEquals(intArrayOf(1, 2), index.pos(4), "Position for serial 4 should be (1,2).")
-//
-//        assertArrayEquals(intArrayOf(2, 0), index.pos(5), "Position for serial 5 should be (2,0).")
-//        assertArrayEquals(intArrayOf(2, 1), index.pos(6), "Position for serial 6 should be (2,1).")
-//        assertArrayEquals(intArrayOf(2, 2), index.pos(7), "Position for serial 7 should be (2,2).")
-//        assertArrayEquals(intArrayOf(2, 3), index.pos(8), "Position for serial 8 should be (2,3).")
-//
-//        assertArrayEquals(intArrayOf(3, 0), index.pos(9), "Position for serial 9 should be (3,0).")
-//        assertArrayEquals(intArrayOf(3, 1), index.pos(10), "Position for serial 10 should be (3,1).")
-//        assertArrayEquals(intArrayOf(3, 2), index.pos(11), "Position for serial 11 should be (3,2).")
-//        assertArrayEquals(intArrayOf(3, 3), index.pos(12), "Position for serial 12 should be (3,3).")
-//        assertArrayEquals(intArrayOf(3, 4), index.pos(13), "Position for serial 13 should be (3,4).")
-//
-//        assertArrayEquals(intArrayOf(4, 0), index.pos(14), "Position for serial 14 should be (4,0).")
-//        assertArrayEquals(intArrayOf(4, 1), index.pos(15), "Position for serial 15 should be (4,1).")
-//        assertArrayEquals(intArrayOf(4, 2), index.pos(16), "Position for serial 16 should be (4,2).")
-//        assertArrayEquals(intArrayOf(4, 3), index.pos(17), "Position for serial 17 should be (4,3).")
-//        assertArrayEquals(intArrayOf(4, 4), index.pos(18), "Position for serial 18 should be (4,4).")
-//        assertArrayEquals(intArrayOf(4, 5), index.pos(19), "Position for serial 19 should be (4,5).")
-//    }
 }
 

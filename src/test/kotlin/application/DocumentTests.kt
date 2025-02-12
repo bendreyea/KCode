@@ -1,7 +1,7 @@
 package application
 
-import org.editor.application.DocumentImpl
-import org.editor.application.NewLine
+import org.editor.application.doc.DocumentImpl
+import org.editor.application.common.LineSeparator
 import org.junit.jupiter.api.Assertions.assertArrayEquals
 import org.junit.jupiter.api.Assertions.assertEquals
 import java.nio.charset.Charset
@@ -179,10 +179,10 @@ class DocumentTests {
         val document = DocumentImpl.create()
 
         // Act
-        val rowEnding = document.rowEnding()
+        val rowEnding = document.lineSeparator()
 
         // Assert
-        assertEquals(NewLine.platform, rowEnding, "Row ending should match the platform-specific newline.")
+        assertEquals(LineSeparator.platform, rowEnding, "Row ending should match the platform-specific newline.")
     }
 
     /**
@@ -250,10 +250,10 @@ class DocumentTests {
         val document = DocumentImpl.create()
 
         // Act
-        val rowEnding = document.rowEnding()
+        val rowEnding = document.lineSeparator()
 
         // Assert
-        assertEquals(NewLine.platform, rowEnding, "Row ending should match the platform-specific newline.")
+        assertEquals(LineSeparator.platform, rowEnding, "Row ending should match the platform-specific newline.")
     }
 
     @Test
@@ -403,11 +403,11 @@ class DocumentTests {
     fun testDocumentImplWithISO8859AndWindowsNewline_insertionAndRetrieval() {
         // Arrange: create a document with ISO-8859-1 and Windows newline ("\r\n")
         val charset = Charset.forName("ISO-8859-1")
-        val windowsNewLine = NewLine.CRLF
+        val windowsLineSeparator = LineSeparator.CRLF
         val doc = DocumentImpl.create(
             charset = charset,
             bom = ByteArray(0),
-            newLine = windowsNewLine
+            lineSeparator = windowsLineSeparator
         )
 
         // Insert text that uses characters specific to ISO-8859-1 and contains a Windows newline.
@@ -433,11 +433,11 @@ class DocumentTests {
     fun testDocumentImplDeletionOfWindowsNewline() {
         // Arrange: create a document with ISO-8859-1 and Windows newline ("\r\n")
         val charset = Charset.forName("ISO-8859-1")
-        val windowsNewLine = NewLine.CRLF
+        val windowsLineSeparator = LineSeparator.CRLF
         val doc = DocumentImpl.create(
             charset = charset,
             bom = ByteArray(0),
-            newLine = windowsNewLine
+            lineSeparator = windowsLineSeparator
         )
 
         // Insert text with two lines separated by CRLF.
@@ -459,4 +459,94 @@ class DocumentTests {
         assertEquals(1, doc.rows(), "There should be 1 row after deletion of the newline.")
     }
 
+    @Test
+    fun `rowEnding returns correct newline for different platforms`() {
+        val document = DocumentImpl.create()
+        assertEquals(LineSeparator.platform, document.lineSeparator(), "Row ending should match the platform-specific newline.")
+    }
+
+    @Test
+    fun `insert and getText with UTF-8 encoding`() {
+        val document = DocumentImpl.create(charset = Charset.forName("UTF-8"))
+        val text = "Hello, 世界!"
+        document.insert(0, 0, text)
+
+        assertEquals(text, document.getText(0))
+    }
+
+    @Test
+    fun `insert and getText with UTF-16 encoding`() {
+        val document = DocumentImpl.create(charset = Charset.forName("UTF-16"))
+        val text = "Hello, 🌍!"
+        document.insert(0, 0, text)
+
+        assertEquals(text, document.getText(0))
+    }
+
+    @Test
+    fun `insert and getText with ISO-8859-1 encoding`() {
+        val document = DocumentImpl.create(charset = Charset.forName("ISO-8859-1"))
+        val text = "Café"
+        document.insert(0, 0, text)
+
+        assertEquals(text, document.getText(0))
+    }
+
+    @Test
+    fun `insert and getText with LF newline`() {
+        val document = DocumentImpl.create(lineSeparator = LineSeparator.LF)
+        val text = "Line1\nLine2"
+        document.insert(0, 0, text)
+
+        assertEquals("Line1\n", document.getText(0))
+        assertEquals("Line2", document.getText(1))
+    }
+
+    @Test
+    fun `insert and getText with CR newline`() {
+        val document = DocumentImpl.create(lineSeparator = LineSeparator.CR)
+        val text = "Line1\rLine2"
+        document.insert(0, 0, text)
+
+        assertEquals("Line1\r", document.getText(0))
+        assertEquals("Line2", document.getText(1))
+    }
+
+    @Test
+    fun `insert and getText with CRLF newline`() {
+        val document = DocumentImpl.create(lineSeparator = LineSeparator.CRLF)
+        val text = "Line1\r\nLine2"
+        document.insert(0, 0, text)
+
+        assertEquals("Line1\r\n", document.getText(0))
+        assertEquals("Line2", document.getText(1))
+    }
+
+    @Test
+    fun `delete text correctly removes characters`() {
+        val document = DocumentImpl.create(charset = Charset.forName("UTF-8"))
+        val text = "Hello, World!"
+        document.insert(0, 0, text)
+
+        document.delete(0, 7, "World")
+        assertEquals("Hello, !", document.getText(0))
+    }
+
+    @Test
+    fun `delete newline removes correct line separation`() {
+        val document = DocumentImpl.create(lineSeparator = LineSeparator.CRLF)
+        val text = "Line1\r\nLine2"
+        document.insert(0, 0, text)
+
+        document.delete(0, 5, "\r\n")
+        assertEquals("Line1Line2", document.getText(0))
+    }
+
+    @Test
+    fun `bom is correctly applied`() {
+        val bom = byteArrayOf(0xEF.toByte(), 0xBB.toByte(), 0xBF.toByte()) // UTF-8 BOM
+        val document = DocumentImpl.create(charset = Charset.forName("UTF-8"), bom = bom)
+
+        assertArrayEquals(bom, document.bom())
+    }
 }

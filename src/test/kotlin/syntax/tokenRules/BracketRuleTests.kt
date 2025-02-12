@@ -1,9 +1,9 @@
 package syntax.tokenRules
 
-import org.editor.syntax.BracketInfo
-import org.editor.syntax.BracketRule
-import org.editor.syntax.Token
-import org.editor.syntax.TokenType
+import org.editor.syntax.lexer.BracketInfo
+import org.editor.syntax.lexer.BracketRule
+import org.editor.syntax.lexer.Token
+import org.editor.syntax.lexer.TokenType
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNotNull

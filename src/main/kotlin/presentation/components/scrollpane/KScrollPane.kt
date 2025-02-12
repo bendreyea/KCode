@@ -1,6 +1,6 @@
 package org.editor.presentation.components.scrollpane
 
-import org.editor.application.UserCaret
+import org.editor.application.common.UserCaret
 import org.editor.presentation.components.textpane.CaretListener
 import org.editor.presentation.components.textpane.EditorTheme
 import org.editor.presentation.components.textpane.KTextPane

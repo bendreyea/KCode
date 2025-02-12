@@ -23,7 +23,7 @@ object ApplicationScope {
         supervisorJob.cancel("Application shutdown")
     }
 
-    private fun showErrorDialog(message: String) {
+    fun showErrorDialog(message: String) {
         JOptionPane.showMessageDialog(
             null,
             message,

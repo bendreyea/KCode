@@ -1,4 +1,4 @@
-package org.editor.application
+package org.editor.application.common
 
 /**
  * Represents the position of a row and column.

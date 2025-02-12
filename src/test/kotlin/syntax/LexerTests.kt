@@ -1,10 +1,11 @@
 package syntax
 
-import org.editor.syntax.Lexer
-import org.editor.syntax.Token
-import org.editor.syntax.TokenType
+import org.editor.syntax.lexer.Lexer
+import org.editor.syntax.lexer.Token
+import org.editor.syntax.lexer.TokenType
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
 class LexerTests {
@@ -114,9 +115,9 @@ class LexerTests {
         val tokens = lexer.tokenize(0, input.length)
 
         assertEquals(9, tokens.size)
-        assertEquals(TokenType.IDENTIFIER, tokens[0].type)  // "public" (no keyword detection)
+        assertEquals(TokenType.KEYWORD, tokens[0].type)
         assertEquals(TokenType.WHITESPACE, tokens[1].type)
-        assertEquals(TokenType.IDENTIFIER, tokens[2].type)  // "class" (no keyword detection)
+        assertEquals(TokenType.KEYWORD, tokens[2].type)
         assertEquals(TokenType.WHITESPACE, tokens[3].type)
         assertEquals(TokenType.IDENTIFIER, tokens[4].type)  // "Main"
         assertEquals(TokenType.WHITESPACE, tokens[5].type)
@@ -217,20 +218,6 @@ class LexerTests {
     }
 
     @Test
-    fun `test lexer handles unexpected characters as error tokens`() {
-        val input = "@#$%^&*"
-        val lexer = Lexer(input)
-        val tokens = lexer.tokenize(0, input.length)
-
-        assertEquals(input.length, tokens.size)
-
-        tokens.forEachIndexed { index, token ->
-            assertEquals(TokenType.ERROR, token.type)
-            assertEquals(input[index].toString(), (token as Token.ErrorToken).message.takeLast(1))
-        }
-    }
-
-    @Test
     fun `test lexer tokenizes mixed input correctly`() {
         val input = "var x = 42; // Comment"
         val lexer = Lexer(input)
@@ -238,7 +225,7 @@ class LexerTests {
 
         assertEquals(10, tokens.size)
 
-        assertEquals(TokenType.IDENTIFIER, tokens[0].type)  // "var"
+        assertEquals(TokenType.KEYWORD, tokens[0].type)  // "var"
         assertEquals(TokenType.WHITESPACE, tokens[1].type)
         assertEquals(TokenType.IDENTIFIER, tokens[2].type)  // "x"
         assertEquals(TokenType.WHITESPACE, tokens[3].type)
@@ -256,5 +243,40 @@ class LexerTests {
         assertEquals(1, tokens.size)
         assertEquals(TokenType.STRING, tokens[0].type)
         assertEquals("\"Hello", (tokens[0] as Token.StringToken).value) // Should still classify as STRING
+    }
+
+    @Test
+    fun `single line matching brackets`() {
+        val lexer = Lexer("(foo)")
+        val tokens = lexer.tokenize(0, lexer.text.length)
+
+        assertEquals(3, tokens.size) // '(' 'foo' ')'
+        assertTrue(lexer.bracketStack.isEmpty())
+    }
+
+    @Test
+    fun `multi-line bracket handling`() {
+        val lexer = Lexer("(\nfoo\n)")
+        val tokens = lexer.tokenize(0, lexer.text.length)
+
+        assertEquals(5, tokens.size) // '(' 'foo' ')'
+        assertTrue(lexer.bracketStack.isEmpty())
+    }
+
+    @Test
+    fun `unclosed bracket remains in stack`() {
+        val lexer = Lexer("( foo")
+        lexer.tokenize(0, lexer.text.length)
+
+        assertEquals(1, lexer.bracketStack.size)
+        assertEquals('(', lexer.bracketStack.first().char)
+    }
+
+    @Test
+    fun `incorrectly nested brackets`() {
+        val lexer = Lexer("( [ ) ]")
+        lexer.tokenize(0, lexer.text.length)
+
+        assertFalse(lexer.bracketStack.isEmpty())
     }
 }

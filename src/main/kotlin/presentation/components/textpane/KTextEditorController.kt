@@ -1,6 +1,6 @@
 package org.editor.presentation.components.textpane
 
-import org.editor.application.UserCaret
+import org.editor.application.common.UserCaret
 import java.awt.FontMetrics
 import java.awt.Toolkit
 import java.awt.datatransfer.DataFlavor
@@ -127,11 +127,21 @@ class KTextEditorController(
                     pasteClipboard()
             }
 
+            KeyEvent.VK_Z -> {
+                if (e.isControlDown || e.isMetaDown) {
+                    undo() // CTRL+Z -> Undo
+                }
+            }
+            KeyEvent.VK_Y -> {
+                if (e.isControlDown || e.isMetaDown)
+                    redo() // CTRL+Y -> Redo
+            }
+
             KeyEvent.VK_ENTER -> {
                 if (hasSelection) {
                     deleteSelection()
                 }
-                val insertCaret = textPane.insertChar(caret.row, caret.col, '\n')
+                val insertCaret = textPane.insert(caret.row, caret.col, textPane.rowEnding().str())
 
                 updateCaret(insertCaret)
                 clearSelection()
@@ -292,6 +302,23 @@ class KTextEditorController(
             clearSelection()
 
         repaintCallback(prev, caret)
+    }
+
+    // --------------------- Undo / Redo ---------------------
+    fun undo() {
+        val caretPositions = textPane.undo()
+        if (caretPositions.isNotEmpty()) {
+            updateCaret(caretPositions.first())
+            repaintVisibleRegion()
+        }
+    }
+
+    fun redo() {
+        val caretPositions = textPane.redo()
+        if (caretPositions.isNotEmpty()) {
+            updateCaret(caretPositions.first())
+            repaintVisibleRegion()
+        }
     }
 
     // --------------------- Selection & Clipboard ---------------------

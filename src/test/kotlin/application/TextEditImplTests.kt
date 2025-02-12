@@ -1,9 +1,8 @@
 package application
 
-import org.editor.application.Document
-import org.editor.application.DocumentImpl
-import org.editor.application.TextEditImpl
-import org.editor.application.UserCaret
+import org.editor.application.doc.DocumentImpl
+import org.editor.application.editor.TextEditImpl
+import org.editor.application.common.UserCaret
 import kotlin.test.Test
 import kotlin.test.assertEquals
 
@@ -194,7 +193,7 @@ class TextEditImplTests {
     @Test
     fun backspace_deletesTextAndVerifiesCaretPosition() {
         // Arrange
-        val te = TextEditImpl(Document.create())
+        val te = TextEditImpl(DocumentImpl.create())
         te.insert(0, 0, "abc")
         val backspaceRow = 0
         val cursorCol = 2
@@ -212,7 +211,7 @@ class TextEditImplTests {
     @Test
     fun backspaceRowBreak_deletesRowBreakCorrectly() {
         // Arrange
-        val te = TextEditImpl(Document.create())
+        val te = TextEditImpl(DocumentImpl.create())
         te.insert(0, 0, "abc\r\n")
         val backspaceRow = 1
         val cursorCol = 0
@@ -230,7 +229,7 @@ class TextEditImplTests {
     @Test
     fun backspaceMultiRow_deletesAcrossRowsAndVerifiesCaret() {
         // Arrange
-        val te = TextEditImpl(Document.create())
+        val te = TextEditImpl(DocumentImpl.create())
         te.insert(0, 0, "abc\ndef\ngh")
         val backspaceRow = 2
         val cursorCol = 1
@@ -246,7 +245,7 @@ class TextEditImplTests {
     @Test
     fun textRight_retrievesCorrectByteSegmentsToTheRight() {
         // Arrange
-        val te = TextEditImpl(Document.create())
+        val te = TextEditImpl(DocumentImpl.create())
         te.insert(0, 0, "abc\ndef\nghi")
 
         // Act & Assert
@@ -273,7 +272,7 @@ class TextEditImplTests {
     @Test
     fun textLeftByte_retrievesCorrectByteSegmentsToTheLeft() {
         // Arrange
-        val te = TextEditImpl(Document.create())
+        val te = TextEditImpl(DocumentImpl.create())
         te.insert(0, 0, "abc\ndef\nghi")
 
         // Act & Assert
@@ -298,7 +297,7 @@ class TextEditImplTests {
     @Test
     fun replace_replacesTextAndVerifiesCaretPosition() {
         // Arrange
-        val te = TextEditImpl(Document.create())
+        val te = TextEditImpl(DocumentImpl.create())
         te.insert(0, 0, "abc\ndef\nghi")
 
         // Act
@@ -320,7 +319,7 @@ class TextEditImplTests {
     @Test
     fun replaceBackward_replacesTextBackwardAndVerifiesCaret() {
         // Arrange
-        val te = TextEditImpl(Document.create())
+        val te = TextEditImpl(DocumentImpl.create())
         te.insert(0, 0, "abc\ndef\nghi")
 
         // Act
@@ -339,7 +338,7 @@ class TextEditImplTests {
     @Test
     fun backspace_issues_1() {
         // Arrange
-        val te = TextEditImpl(Document.create())
+        val te = TextEditImpl(DocumentImpl.create())
         te.insert(0, 0, "1")
         te.insert(0, 1, "\n")
         te.insert(1, 0, "\n")
@@ -360,7 +359,7 @@ class TextEditImplTests {
     @Test
     fun backspace_issues_3() {
         // Arrange
-        val te = TextEditImpl(Document.create())
+        val te = TextEditImpl(DocumentImpl.create())
         te.insert(0, 0, "1")
         te.insert(0, 1, "\n")
         te.insert(1, 0, "\n")
@@ -381,7 +380,7 @@ class TextEditImplTests {
     @Test
     fun backspace_issues_2() {
         // Arrange
-        val te = TextEditImpl(Document.create())
+        val te = TextEditImpl(DocumentImpl.create())
         te.insert(0, 0, "1")
         te.insert(0, 1, "\n")
         te.insert(1, 0, "\n")

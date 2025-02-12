@@ -6,10 +6,10 @@ import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import org.editor.ApplicationScope
-import org.editor.application.Document
-import org.editor.application.TextEditImpl
-import org.editor.application.UserCaret
-import org.editor.presentation.components.SwingDispatchers
+import org.editor.SwingDispatchers
+import org.editor.application.doc.DocumentImpl
+import org.editor.application.editor.TextEditImpl
+import org.editor.application.common.UserCaret
 import org.editor.presentation.components.scrollpane.KScrollPane
 import org.editor.presentation.components.textpane.CaretListener
 import org.editor.presentation.components.textpane.EditorTheme
@@ -31,7 +31,7 @@ class MainFrame : JFrame("KCode") {
 
 
     private val theme = EditorTheme()
-    private val textPaneContent = TextPaneContent(TextEditImpl(Document.create()))
+    private val textPaneContent = TextPaneContent(TextEditImpl(DocumentImpl.create()))
     private val textPane = KTextPane(textPaneContent, theme)
     private val openButton = JButton("Open File")
     private val saveButton = JButton("Save File")
@@ -88,22 +88,11 @@ class MainFrame : JFrame("KCode") {
             val file = fileChooser.selectedFile
             ApplicationScope.scope.launch {
                 fileOperationMutex.withLock {
-                    try {
-                        val fileText = readFileContent(file)
-                        // Ensure UI updates on EDT
-                        withContext(SwingDispatchers.Swing) {
-                            textPane.setTextContent(fileText)
-                            textPane.requestFocusInWindow()
-                        }
-                    } catch (e: Exception) {
-                        withContext(SwingDispatchers.Swing) {
-                            JOptionPane.showMessageDialog(
-                                this@MainFrame,
-                                "Error loading file: ${e.message}",
-                                "Error",
-                                JOptionPane.ERROR_MESSAGE
-                            )
-                        }
+                    val fileText = readFileContent(file)
+                    // Ensure UI updates on EDT
+                    withContext(SwingDispatchers.Swing) {
+                        textPane.setTextContent(fileText)
+                        textPane.requestFocusInWindow()
                     }
                 }
             }
@@ -122,23 +111,8 @@ class MainFrame : JFrame("KCode") {
                             textPane.getTextContent()
                         }
                         writeFileContent(file, content)
-                        withContext(SwingDispatchers.Swing) {
-                            JOptionPane.showMessageDialog(
-                                this@MainFrame,
-                                "File saved successfully.",
-                                "Success",
-                                JOptionPane.INFORMATION_MESSAGE
-                            )
-                        }
                     } catch (e: Exception) {
-                        withContext(SwingDispatchers.Swing) {
-                            JOptionPane.showMessageDialog(
-                                this@MainFrame,
-                                "Error saving file: ${e.message}",
-                                "Error",
-                                JOptionPane.ERROR_MESSAGE
-                            )
-                        }
+                        e.printStackTrace()
                     }
                 }
             }

@@ -11,8 +11,21 @@ class PieceTable private constructor(
     initial: Piece?
 ) : TextBuffer {
 
+    private constructor(
+        pieces: List<Piece>,
+        prefixSums: List<Long>,
+        totalLength: Long,
+        appendBuffer: ByteArrayBuffer
+    ) : this(null) {
+        this.appendBuffer = appendBuffer
+        this.pieces.addAll(pieces)
+        this.prefixSums.clear()
+        this.prefixSums.addAll(prefixSums)
+        this.totalLength = totalLength
+    }
+
     /** Where newly appended data goes. */
-    private val appendBuffer: ByteArrayBuffer = ByteArrayBuffer.create()
+    private var appendBuffer: ByteArrayBuffer = ByteArrayBuffer.create()
 
     /**
      * The ordered list of all pieces. Each piece knows:
@@ -68,6 +81,60 @@ class PieceTable private constructor(
         mergeIfPossible(pieceIndex)
     }
 
+    override fun withInsert(pos: Long, bytes: ByteArray): TextBuffer {
+        if (bytes.isEmpty())
+            return this
+
+        require(pos in 0..totalLength) {
+            "Insert pos=$pos out of range (0..$totalLength)"
+        }
+
+        // Snapshot old buffer, then append new data
+        val newAppendBuffer = appendBuffer.snapshot()
+        val offsetInNewBuffer = newAppendBuffer.length()
+        newAppendBuffer.append(bytes)
+
+        val newPieces = pieces.toMutableList()
+        val newPrefixSums = prefixSums.toMutableList()
+        var newTotalLength = totalLength
+
+        val newPiece = Piece(newAppendBuffer, offsetInNewBuffer, bytes.size.toLong())
+
+        val index = findPieceIndex(pos)
+        if (index == -1) {
+            // That typically means: table is empty or pos is beyond the last piece’s prefix
+            newPieces.add(newPiece)
+            newPrefixSums.add(newPrefixSums.last() + bytes.size)
+            newTotalLength += bytes.size
+        } else {
+            val startInPiece = pos - newPrefixSums[index]
+            if (startInPiece == 0L) {
+                // Insert at the start of piece `index`
+                newPieces.add(index, newPiece)
+                newTotalLength += bytes.size
+                rebuildPrefixSums(newPieces, newPrefixSums, index)
+            } else {
+                // We must split the piece
+                val oldPiece = newPieces[index]
+                val (left, right) = oldPiece.split(startInPiece)
+                newPieces[index] = left
+                newPieces.add(index + 1, newPiece)
+                newPieces.add(index + 2, right)
+                newTotalLength += bytes.size
+                rebuildPrefixSums(newPieces, newPrefixSums, index)
+            }
+
+            mergeIfPossible(index)
+        }
+
+        return PieceTable(
+            pieces = newPieces,
+            prefixSums = newPrefixSums,
+            totalLength = newTotalLength,
+            appendBuffer = newAppendBuffer
+        )
+    }
+
     override fun delete(pos: Long, len: Int) {
         if (len <= 0) return
         val endPos = pos + len
@@ -103,6 +170,54 @@ class PieceTable private constructor(
         // Merge adjacent pieces safely
         if (removeFrom > 0) mergeIfPossible(removeFrom - 1)
         if (removeFrom < pieces.size) mergeIfPossible(removeFrom)
+    }
+
+    override fun withDelete(pos: Long, len: Int): TextBuffer {
+        if (len <= 0)
+            return this
+
+        val endPos = pos + len
+        require(pos >= 0 && endPos <= totalLength) {
+            "Delete range [$pos..$endPos) out of bounds (length=$totalLength)"
+        }
+
+        // Copy-on-write
+        val newPieces = pieces.toMutableList()
+        val newPrefixSums = prefixSums.toMutableList()
+        var newTotalLength = totalLength
+
+        val startIndex = findPieceIndex(pos)
+        val startOffset = pos - newPrefixSums[startIndex]
+        splitPiece(newPieces, newPrefixSums, startIndex, startOffset)
+
+        val endIndex = findPieceIndex(endPos - 1, newPieces, newPrefixSums)
+        val endOffset = endPos - newPrefixSums[endIndex]
+        splitPiece(newPieces, newPrefixSums, endIndex, endOffset)
+
+        // Now remove all pieces fully within [startIndex+1 .. endIndex]
+        // or partially if they are the new splits.
+        val removeFrom = if (startOffset > 0) startIndex + 1 else startIndex
+        val removeTo   = if (endOffset == 0L) endIndex else endIndex
+
+        if (removeFrom in newPieces.indices && removeTo in newPieces.indices && removeFrom <= removeTo) {
+            val removedLength = newPrefixSums[removeTo + 1] - newPrefixSums[removeFrom]
+            newPieces.subList(removeFrom, removeTo + 1).clear()
+            newTotalLength -= removedLength
+            rebuildPrefixSums(newPieces, newPrefixSums, removeFrom.coerceAtLeast(0))
+        }
+
+        return PieceTable(newPieces, newPrefixSums, newTotalLength, appendBuffer)
+    }
+
+    override fun snapshot(): TextBuffer {
+        val snap = PieceTable(
+            pieces = pieces.toList(),
+            prefixSums = prefixSums.toList(),
+            totalLength = totalLength,
+            appendBuffer = appendBuffer.snapshot()
+        )
+
+        return snap
     }
 
     private fun mergeIfPossible(index: Int) {
@@ -141,6 +256,25 @@ class PieceTable private constructor(
         rebuildPrefixSumsFrom(index)
 
         return right
+    }
+
+    /**
+     * Splits the piece at [index] if [offset] is within that piece.
+     */
+    private fun splitPiece(
+        pieceList: MutableList<Piece>,
+        sumList: MutableList<Long>,
+        index: Int,
+        offset: Long
+    ) {
+        if (index < 0 || index >= pieceList.size) return
+        if (offset <= 0 || offset >= pieceList[index].length) return
+
+        val oldPiece = pieceList[index]
+        val (left, right) = oldPiece.split(offset)
+        pieceList[index] = left
+        pieceList.add(index + 1, right)
+        rebuildPrefixSums(pieceList, sumList, index)
     }
 
     override fun get(pos: Long, len: Int): ByteArray {
@@ -216,6 +350,27 @@ class PieceTable private constructor(
         return -1
     }
 
+    private fun findPieceIndex(
+        pos: Long,
+        pieceList: List<Piece>,
+        sumList: List<Long>
+    ): Int {
+        // Standard binary search over prefix sums
+        var low = 0
+        var high = pieceList.size - 1
+        while (low <= high) {
+            val mid = (low + high).ushr(1)
+            val start = sumList[mid]
+            val end = sumList[mid + 1]
+            when {
+                pos < start -> high = mid - 1
+                pos >= end -> low = mid + 1
+                else -> return mid
+            }
+        }
+        return pieceList.size - 1
+    }
+
     private fun rebuildPrefixSumsFrom(fromIndex: Int) {
         var current = prefixSums[fromIndex]
         for (i in fromIndex until pieces.size) {
@@ -229,6 +384,27 @@ class PieceTable private constructor(
         // Trim excess
         while (prefixSums.size > pieces.size + 1) {
             prefixSums.removeLast()
+        }
+    }
+
+    private fun rebuildPrefixSums(
+        pieceList: MutableList<Piece>,
+        sumList: MutableList<Long>,
+        startIndex: Int
+    ) {
+        // Guarantee sumList.size == pieceList.size + 1
+        // Expand or shrink sumList if needed
+        while (sumList.size < pieceList.size + 1)
+            sumList.add(sumList.last())
+
+        while (sumList.size > pieceList.size + 1)
+            sumList.removeLast()
+
+        val base = if (startIndex == 0) 0L else sumList[startIndex]
+        var current = base
+        for (i in startIndex until pieceList.size) {
+            current += pieceList[i].length
+            sumList[i + 1] = current
         }
     }
 

@@ -1,6 +1,6 @@
 package org.editor.presentation.components.textpane
 
-import org.editor.syntax.TokenType
+import org.editor.syntax.lexer.TokenType
 import java.awt.Color
 import java.awt.Font
 
