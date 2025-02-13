@@ -11,8 +11,6 @@ import java.util.*
 import kotlin.math.min
 
 /**
- * A production-ready [TextEdit] implementation.
- *
  * This class maintains a queue of unflushed edits, applies them to the underlying
  * [Document], and supports undo/redo operations. It also keeps an in-memory “dry run”
  * buffer to provide a responsive UI while typing.
@@ -23,10 +21,28 @@ class TextEditImpl(
     private val doc: Document
 ) : TextEdit {
 
-    //region Public API
+    // Edit queues and buffers
+    private val editQueue: Deque<Edit> = ArrayDeque()
+    private val undo: Deque<Edit> = ArrayDeque()
+    private val redo: Deque<Edit> = ArrayDeque()
+    private val dryBuffer: MutableMap<Int, String> = mutableMapOf()
+
+    private var lastDocSnapshot: DocumentSnapshot? = null
+    private var version = 0
+
+    private val index = TextRowIndex.create(doc.lineSeparator().str())
+    private val editorListeners = mutableListOf<EditorChangeListener>()
+
+    init {
+        doc.addListener { snapshot ->
+            lastDocSnapshot = snapshot
+            notifyEditorListeners(0, 0)
+        }
+    }
 
     override fun insert(row: Int, col: Int, text: CharSequence): UserCaret {
-        if (text.isEmpty()) return UserCaret(row, col)
+        if (text.isEmpty())
+            return UserCaret(row, col)
 
         val edit = createInsertEdit(row, col, text)
         pushEdit(edit)
@@ -153,29 +169,6 @@ class TextEditImpl(
         editorListeners.remove(listener)
     }
 
-    //endregion
-
-    //region Internal State & Helpers
-
-    // Edit queues and buffers
-    private val editQueue: Deque<Edit> = ArrayDeque()
-    private val undo: Deque<Edit> = ArrayDeque()
-    private val redo: Deque<Edit> = ArrayDeque()
-    private val dryBuffer: MutableMap<Int, String> = mutableMapOf()
-
-    private var lastDocSnapshot: DocumentSnapshot? = null
-    private var version = 0
-
-    private val index = TextRowIndex.create(doc.lineSeparator().str())
-    private val editorListeners = mutableListOf<EditorChangeListener>()
-
-    init {
-        doc.addListener { snapshot ->
-            lastDocSnapshot = snapshot
-            notifyEditorListeners(0, 0)
-        }
-    }
-
     /**
      * Notifies all editor listeners with an updated snapshot.
      *
@@ -183,7 +176,11 @@ class TextEditImpl(
      * @param end The ending row that changed.
      */
     private fun notifyEditorListeners(start: Int, end: Int) {
-        val snapshot = lastDocSnapshot ?: return
+        val snapshot = lastDocSnapshot
+        if (editQueue.isNotEmpty() && dryBuffer.isEmpty()) {
+            applyEditsInMemory()
+        }
+
         // Pass a copy of the dryBuffer to ensure immutability.
         val editorSnapshot = EditorDocumentSnapshot(
             version,
@@ -191,6 +188,7 @@ class TextEditImpl(
             snapshot,
             dryBuffer.toMap()
         )
+
         editorListeners.forEach { it.onEditorChange(start, end, editorSnapshot) }
     }
 
@@ -220,14 +218,13 @@ class TextEditImpl(
     private fun pushEdit(edit: Edit) {
         // Try to merge with the last edit in the queue
         val lastEdit = editQueue.lastOrNull()
-        if (lastEdit?.merge(edit) != null) {
+        val merged = lastEdit?.merge(edit)
+        if (merged != null) {
             editQueue.removeLast()
-            // Flush before adding merged edit to avoid inconsistent state.
-            flush()
-            editQueue.push(lastEdit.merge(edit)!!)
+            editQueue.push(merged)
             return
         }
-        // Flush pending edits before adding the new one.
+        // Flush pending edits before adding a non-mergeable new one.
         flush()
         editQueue.push(edit)
 
@@ -243,6 +240,7 @@ class TextEditImpl(
             }
         }
     }
+
 
     /**
      * Applies a single [edit] to the underlying document and updates the [index].

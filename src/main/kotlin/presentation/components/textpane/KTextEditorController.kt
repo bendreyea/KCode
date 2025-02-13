@@ -12,8 +12,6 @@ class KTextEditorController(
     private val textPane: TextPaneContent,
     private val fontMetrics: FontMetrics,
     private val editorTheme: EditorTheme,
-    private val getHeight: () -> Int,
-    private val getWidth: () -> Int,
     private val repaintCallback: (UserCaret, UserCaret) -> Unit,
     private val repaintVisibleRegion: () -> Unit
 ) : KeyAdapter(), MouseListener, MouseMotionListener {

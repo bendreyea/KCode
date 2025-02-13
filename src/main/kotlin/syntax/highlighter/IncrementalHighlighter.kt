@@ -1,6 +1,8 @@
 package org.editor.syntax.highlighter
 
 import kotlinx.coroutines.*
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import org.editor.ApplicationScope
 import org.editor.application.editor.EditorDocumentSnapshot
 import org.editor.syntax.intervalTree.Interval
@@ -9,12 +11,11 @@ import org.editor.syntax.lexer.BracketInfo
 import org.editor.syntax.lexer.LexerState
 import java.util.*
 import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.atomic.AtomicInteger
 import java.util.concurrent.atomic.AtomicReference
-import java.util.concurrent.locks.ReentrantLock
-import java.util.concurrent.locks.ReentrantReadWriteLock
 import kotlin.collections.ArrayDeque
-import kotlin.concurrent.withLock
 import kotlin.coroutines.coroutineContext
+import kotlin.math.min
 
 data class ParseJob(
     val version: Int,
@@ -29,27 +30,35 @@ class IncrementalHighlighter(
     private val parser: Parser,
     private val cacheManager: ParseCacheManager
 ) {
-    private val parsingQueue = PriorityQueue<ParseJob>(compareByDescending { it.version })
-    private var currentJobVersion = 0
-    private val queueLock = ReentrantLock()
-    private val intervalLock = ReentrantReadWriteLock()
-    private val intervals = ConcurrentHashMap<Int, List<HighlightInterval>>()
+    // A priority queue to schedule parse jobs (newer jobs come first).
+    private val parsingQueue = PriorityQueue<ParseJob>()
+    private val currentJobVersion = AtomicInteger(0)
+
+    // Replace ReentrantLock with Kotlin’s Mutex (non‑blocking).
+    private val queueMutex = Mutex()
+    // Use a Mutex instead of a ReadWriteLock to protect the interval tree.
+    private val intervalMutex = Mutex()
+
+    // A shared interval tree containing all highlight intervals.
     private val intervalsTree = IntervalTree<HighlightInterval>()
+    private val highlightIntervalsByLine = ConcurrentHashMap<Int, List<HighlightInterval>>()
 
     companion object {
         private const val DEFAULT_CHUNK_SIZE = 100
     }
 
     // Dynamically adjusted chunk size.
-    var chunkSize = DEFAULT_CHUNK_SIZE
+    var chunkSize: Int = DEFAULT_CHUNK_SIZE
+        private set
 
-    // Global AST is maintained via an atomic reference.
+    // Global AST maintained in an atomic reference.
     private val astRef = AtomicReference<ASTNode>(BlockNode(0, 0, emptyList(), null, 0))
 
     /**
-     * Parses one line if needed by comparing the hash and the incoming starting state/stack with a cached value.
+     * Incrementally parse one line if needed (using the cache to avoid re‑parsing unchanged lines).
+     * Updates the interval tree with new highlight intervals.
      */
-    fun parseLineIfNeeded(
+    suspend fun parseLineIfNeeded(
         row: Int,
         snapshot: EditorDocumentSnapshot,
         incomingState: LexerState,
@@ -59,74 +68,170 @@ class IncrementalHighlighter(
         val newHash = lineText.hashCode()
         val newLength = lineText.length
         val cached = cacheManager.getLineCache(row)
-        // Check that the line text is unchanged and that the state we use to parse it is the same.
+
+        // Skip re‑parsing if the line text and parser input (state/stack) are unchanged.
         if (cached != null &&
             cached.hash == newHash &&
             incomingState == cached.startState &&
             incomingBracketStack.toList() == cached.startBracketStack
         ) {
-            // Skip re‑parsing if nothing has changed.
             return Pair(cached.endState, ArrayDeque(cached.endBracketStack))
         }
 
-        // calculate the offset of the line
-        val start = snapshot.serial(row, 0);
-        val end = snapshot.serial(row, lineText.length);
-        val parseResult = parser.parseLine(lineText, start, end, incomingState, incomingBracketStack)
-        intervalLock.writeLock().withLock {
-            parseResult.highlightInterval.forEach(intervalsTree::insert)
-        }
+        // Calculate the line’s offset.
+//        val start = snapshot.serial(row, 0)
+//        val end = snapshot.serial(row, lineText.length)
+        val parseResult = parser.parseLine(lineText, 0, 0, incomingState, incomingBracketStack)
 
-        // Cache both the starting and final state for this line.
-        cacheManager.updateLineCache(row, LineCache(
-            hash = newHash,
-            length = newLength,
-            startState = incomingState,
-            startBracketStack = incomingBracketStack.toList(),
-            endState = parseResult.endState,
-            endBracketStack = parseResult.newBracketStack.toList()
-        )
+
+//        // Update the interval tree
+//        intervalMutex.withLock {
+//            // Calculate the absolute positions for the line.
+//            val lineStart = snapshot.serial(row, 0).toInt()
+//            val lineEnd = snapshot.serial(row, lineText.length).toInt()
+//            // Query and delete all existing intervals that overlap this line.
+//            val existingIntervals = intervalsTree.queryOverlapping(lineStart, lineEnd)
+//            existingIntervals.forEach { intervalsTree.delete(it) }
+//
+//            // Insert the new intervals.
+//            parseResult.highlightInterval.forEach { intervalsTree.insert(it) }
+//        }
+
+        highlightIntervalsByLine[row] = parseResult.highlightInterval
+
+
+        // Update the cache for this line.
+        cacheManager.updateLineCache(
+            row, LineCache(
+                hash = newHash,
+                length = newLength,
+                startState = incomingState,
+                startBracketStack = incomingBracketStack.toList(),
+                endState = parseResult.endState,
+                endBracketStack = parseResult.newBracketStack.toList()
+            )
         )
 
-        // Atomically merge the new AST result.
-        // astRef.getAndUpdate { currentAst -> currentAst.mergeWith(parseResult.ast) }
         return Pair(parseResult.endState, ArrayDeque(parseResult.newBracketStack))
     }
 
-    fun getAllIntervals(row: Int, begin: Int, end: Int): List<HighlightInterval> {
-        intervalLock.readLock().withLock {
-            return intervalsTree.queryOverlapping(row + begin, row + end)
-        }
+
+    fun getLineHighlightIntervals(row: Int): List<HighlightInterval> {
+        return highlightIntervalsByLine[row] ?: emptyList()
     }
 
+
     /**
-     * Re‑parses a chunk starting at a given checkpoint.
+     * Retrieve highlight intervals overlapping the given range.
      */
-    private fun parseChunkIfNeeded(chunkIndex: Int, snapshot: EditorDocumentSnapshot) {
+    suspend fun getAllIntervals(row: Int, begin: Int, end: Int): List<HighlightInterval> =
+        intervalMutex.withLock { intervalsTree.queryOverlapping(row + begin, row + end) }
+
+    /**
+     * Parse a chunk of lines (from the checkpoint) if needed.
+     */
+    private suspend fun parseChunkIfNeeded(chunkIndex: Int, snapshot: EditorDocumentSnapshot) {
         try {
             val checkpoint = cacheManager.getCheckpoint(chunkIndex) ?: return
             var currentState = checkpoint.startLexerState
             val bracketStack = ArrayDeque(checkpoint.startBracketStack)
-            val lastLineInChunk = checkpoint.chunkStartLine + chunkSize - 1
-            val totalRows = snapshot.rows()
-            for (row in checkpoint.chunkStartLine..minOf(lastLineInChunk, totalRows - 1)) {
+            val lastLineInChunk = min(checkpoint.chunkStartLine + chunkSize - 1, snapshot.rows() - 1)
+
+            for (row in checkpoint.chunkStartLine..lastLineInChunk) {
                 val (newState, newStack) = parseLineIfNeeded(row, snapshot, currentState, bracketStack)
                 currentState = newState
                 bracketStack.clear()
                 bracketStack.addAll(newStack)
             }
 
-            // Update the checkpoint with the final state after parsing this chunk.
+            // Update the checkpoint with the final parser state for the chunk.
             cacheManager.updateCheckpoint(chunkIndex, currentState, bracketStack)
-        }
-        catch (e: Exception) {
+        } catch (e: Exception) {
             println("Error parsing chunk $chunkIndex: ${e.message}")
             e.printStackTrace()
         }
     }
 
     /**
-     * Adjusts the chunk size dynamically and re‑initializes checkpoints if needed.
+     * Recalculate the chunk size (and re‑initialize checkpoints if needed) based on the total rows.
+     */
+    private fun recalcChunkSize(totalRows: Int) {
+        chunkSize = when {
+            totalRows < 2000 -> 15
+            totalRows < 5000 -> 30
+            totalRows < 10000 -> 60
+            totalRows < 50000 -> 90
+            else -> 120
+        }
+    }
+
+    /**
+     * When the document is edited, update checkpoints and schedule re‑parsing of affected chunks.
+     */
+    suspend fun handleEdit(editRange: Interval, updatedSnapshot: EditorDocumentSnapshot): Job {
+        // Adjust checkpoints if the number of rows has changed.
+        val text = updatedSnapshot.getText(0)
+        resizeCheckpoints(updatedSnapshot.rows())
+
+        val firstChunkIndex = editRange.start / chunkSize
+        val lastChunkIndex = editRange.end / chunkSize
+        val affectedChunks = (firstChunkIndex..lastChunkIndex).toSet()
+
+        return enqueueParseJob(affectedChunks, updatedSnapshot)
+    }
+
+    /**
+     * Enqueue a new parse job for the given set of chunks.
+     * Any older jobs that overlap these chunks are cancelled.
+     */
+    private suspend fun enqueueParseJob(chunkIndices: Set<Int>, snapshot: EditorDocumentSnapshot): Job {
+        return queueMutex.withLock {
+            val newVersion = currentJobVersion.incrementAndGet()
+            val newJob = ParseJob(
+                version = newVersion,
+                chunkIndices = chunkIndices,
+                snapshot = snapshot,
+                job = ApplicationScope.scope.launch {
+                    processChunks(chunkIndices, snapshot, newVersion)
+                }
+            )
+
+            // Cancel older jobs that overlap these chunks.
+            parsingQueue.removeIf { existing ->
+                if (existing.chunkIndices.any { it in chunkIndices }) {
+                    existing.job.cancel()
+                    true
+                } else false
+            }
+
+            parsingQueue.add(newJob)
+            newJob.job
+        }
+    }
+
+    /**
+     * Process (parse) each affected chunk sequentially.
+     * If a newer job has started meanwhile, cancel the current work.
+     */
+    private suspend fun processChunks(chunkIndices: Set<Int>, snapshot: EditorDocumentSnapshot, jobVersion: Int) {
+        for (chunkIndex in chunkIndices) {
+            if (!coroutineContext.isActive) return
+
+            parseChunkIfNeeded(chunkIndex, snapshot)
+
+            queueMutex.withLock {
+                if (jobVersion < currentJobVersion.get()) {
+                    parsingQueue.removeIf { it.version == jobVersion }
+                    coroutineContext.cancel()  // Cancel this job since a newer one exists.
+                }
+            }
+
+            yield()
+        }
+    }
+
+    /**
+     * Adjust (or re‑initialize) checkpoints when the document’s row count changes.
      */
     private fun resizeCheckpoints(newTotalRows: Int) {
         val oldChunkSize = chunkSize
@@ -138,79 +243,6 @@ class IncrementalHighlighter(
         }
     }
 
-    /**
-     * Called when the document is edited.
-     */
-    fun handleEdit(editRange: Interval, updatedText: EditorDocumentSnapshot) {
-        resizeCheckpoints(updatedText.rows())
-
-        val firstChunkIndex = (editRange.start) / chunkSize
-        val lastChunkIndex = (editRange.end) / chunkSize
-        val affectedChunks = (firstChunkIndex..lastChunkIndex).toSet()
-
-        enqueueParseJob(affectedChunks, updatedText)
-    }
-
-    // provide getters for the AST or highlight intervals.
+    // Optional: Expose the current AST (if used) in a thread‑safe way.
     fun getAST(): ASTNode = astRef.get()
-
-    private fun enqueueParseJob(chunkIndices: Set<Int>, snapshot: EditorDocumentSnapshot): Job {
-        queueLock.withLock {
-            currentJobVersion++
-            val newJob = ParseJob(
-                version = currentJobVersion,
-                chunkIndices = chunkIndices,
-                snapshot = snapshot,
-                job = ApplicationScope.scope.launch(Dispatchers.Default) {
-                    processChunks(chunkIndices, snapshot, currentJobVersion)
-                }
-            )
-
-            // Cancel older jobs that overlap the same chunks
-            parsingQueue.removeIf { existing ->
-                if (existing.chunkIndices.any { it in chunkIndices }) {
-                    existing.job.cancel()
-                    true
-                } else false
-            }
-
-            parsingQueue.add(newJob)
-            return newJob.job
-        }
-    }
-
-    private suspend fun processChunks(
-        chunkIndices: Set<Int>,
-        snapshot: EditorDocumentSnapshot,
-        jobVersion: Int
-    ) {
-        chunkIndices.forEach { chunkIndex ->
-            if (!coroutineContext.isActive)
-                return@forEach
-
-            parseChunkIfNeeded(chunkIndex, snapshot)
-
-            queueLock.withLock {
-                if (jobVersion < currentJobVersion) {
-                    parsingQueue.removeIf { it.version == jobVersion }
-                    coroutineContext.cancel()
-                }
-            }
-
-            yield()
-        }
-    }
-
-    /**
-     * Dynamically recalculates the chunk size based on the total number of rows.
-     */
-    private fun recalcChunkSize(totalRows: Int) {
-        chunkSize = when {
-            totalRows < 2000 -> 15
-            totalRows < 5000 -> 30
-            totalRows < 10000 -> 60
-            totalRows < 50000 -> 90
-            else -> 120
-        }
-    }
 }

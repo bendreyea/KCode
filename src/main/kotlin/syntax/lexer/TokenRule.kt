@@ -185,6 +185,7 @@ object KeywordRule : TokenRule {
             lexer.pos = tempPos
             return Token.KeywordToken(start, tempPos, lexeme)
         }
+
         return null
     }
 }

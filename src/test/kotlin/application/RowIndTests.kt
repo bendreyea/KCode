@@ -11,7 +11,7 @@ class RowIndexTests {
     fun testUnixNewline() {
         // Using Unix newlines ("\n")
         val newline = "\n"
-        val textRowIndex = TextRowIndex.create(newline, 100)
+        val textRowIndex = TextRowIndex.create(newline)
         val text = "Hello\nWorld\nTest"
         textRowIndex.add(text)
 
@@ -36,7 +36,7 @@ class RowIndexTests {
     fun testWindowsNewline() {
         // Using Windows newlines ("\r\n")
         val newline = "\r\n"
-        val textRowIndex = TextRowIndex.create(newline, 100)
+        val textRowIndex = TextRowIndex.create(newline)
         val text = "Line1\r\nLine2\r\nLine3"
         textRowIndex.add(text)
 
@@ -61,7 +61,7 @@ class RowIndexTests {
     fun testOldMacNewline() {
         // Using old Mac newlines ("\r")
         val newline = "\r"
-        val textRowIndex = TextRowIndex.create(newline, 100)
+        val textRowIndex = TextRowIndex.create(newline)
         val text = "One\rTwo\rThree"
         textRowIndex.add(text)
 
@@ -85,7 +85,7 @@ class RowIndexTests {
     @Test
     fun testInsertOperation() {
         val newline = "\n"
-        val textRowIndex = TextRowIndex.create(newline, 100)
+        val textRowIndex = TextRowIndex.create(newline)
         // Start with one insertion: "Hello\nWorld" → two rows.
         textRowIndex.add("Hello\nWorld")
         // Expect row0: "Hello\n" (6 chars) and row1: "World" (5 chars)
@@ -109,7 +109,7 @@ class RowIndexTests {
     @Test
     fun testDeleteOperation() {
         val newline = "\n"
-        val textRowIndex = TextRowIndex.create(newline, 100)
+        val textRowIndex = TextRowIndex.create(newline)
         // Start with three rows using "Hello\nWorld\nTest":
         // row0: "Hello\n" → 6, row1: "World\n" → 6, row2: "Test" → 4.
         textRowIndex.add("Hello\nWorld\nTest")

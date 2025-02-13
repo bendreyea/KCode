@@ -56,7 +56,7 @@ class TextPaneContent(private val textEdit: TextEdit) {
     fun rows(): Int = textEdit.rows()
 
     fun getText(row: Int): String  {
-        val text = textEdit.getText(row)
+        val text = textEdit.getText(row).replace(rowEnding().str(), "")
 
         if (text.length > measureMaxLineWidth) {
             measureMaxLineWidth = text.length
@@ -81,11 +81,8 @@ class TextPaneContent(private val textEdit: TextEdit) {
 
     fun rowEnding() = textEdit.rowEnding()
 
-
     fun getIntervalsForLine(row: Int): List<HighlightInterval> {
-        val being = textEdit.serial(row, 0).toInt()
-        val end = textEdit.serial(row, textEdit.getText(row).length).toInt()
-        return incrementalParser.getAllIntervals(row, being, end)
+        return incrementalParser.getLineHighlightIntervals(row)
     }
 
     fun getTextContent(): String {
@@ -93,6 +90,7 @@ class TextPaneContent(private val textEdit: TextEdit) {
         val sb = StringBuilder()
         for (r in 0 until rows()) {
             sb.append(getText(r))
+            sb.append(rowEnding().str())
         }
 
         return sb.toString()
@@ -121,6 +119,8 @@ class TextPaneContent(private val textEdit: TextEdit) {
     fun addChangeListener(listener: (start: Int, end: Int) -> Unit) {
         listeners.add(listener)
     }
+
+    fun getLineSeparator() = textEdit.rowEnding()
 
     fun removeChangeListener(listener: (start: Int, end: Int) -> Unit) {
         listeners.remove(listener)

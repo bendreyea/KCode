@@ -43,8 +43,6 @@ class KTextEditorControllerTest {
             textPane,
             fontMetrics,
             editorTheme,
-            getHeight = { 800 },
-            getWidth = { 600 },
             repaintCallback = { _, _ -> },
             repaintVisibleRegion = {}
         )

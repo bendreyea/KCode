@@ -1,7 +1,7 @@
 package application
 
-import org.editor.application.common.LineSeparator
 import org.editor.application.RowIndex
+import org.editor.application.common.LineSeparator
 import org.junit.jupiter.api.Assertions
 import org.junit.jupiter.api.Assertions.assertThrows
 import java.nio.charset.StandardCharsets
@@ -133,7 +133,7 @@ class TextRowIndexTests {
 
     @Test
     fun get_complexRowIndex_returnsCorrectSerialNumbers() {
-        val index = RowIndex.create(5)
+        val index = RowIndex.create()
         index.add("ab\n\ncde\nf\ng\nhi\njkl\nmn".toByteArray(StandardCharsets.UTF_8))
         assertEquals(0, index.get(0), "Serial number for row 0 should be 0.")
         assertEquals(3, index.get(1), "Serial number for row 1 should be 3.")
@@ -147,7 +147,7 @@ class TextRowIndexTests {
 
     @Test
     fun insert_insertsTextAtSpecificPositions_updatesRowLengths() {
-        val index = RowIndex.create(5)
+        val index = RowIndex.create()
         index.add("ab\ncde\nfg\nhij\nk".toByteArray(StandardCharsets.UTF_8))
         val insertText = "12\n24\n56".toByteArray(StandardCharsets.UTF_8)
         index.insert(1, 2, insertText)
@@ -163,7 +163,7 @@ class TextRowIndexTests {
 
     @Test
     fun insertMono_insertsIntoEmptyRowIndex_correctly() {
-        val index = RowIndex.create(5)
+        val index = RowIndex.create()
         val insertText = "abc".toByteArray(StandardCharsets.UTF_8)
         index.insert(0, 0, insertText)
         assertEquals(1, index.rowLengths().size, "There should be 1 row after insertion.")
@@ -172,7 +172,7 @@ class TextRowIndexTests {
 
     @Test
     fun deleteEnd_deletesCharactersFromEnd_correctly() {
-        val index = RowIndex.create(5)
+        val index = RowIndex.create()
         index.add("12".toByteArray(StandardCharsets.UTF_8))
         index.delete(0, 1, 1) // Delete character at position 1
         assertEquals(1, index.rowLengths().size, "Row size should remain 1 after deletion.")
@@ -185,7 +185,7 @@ class TextRowIndexTests {
 
     @Test
     fun deleteEnd2_deletesCharactersFromEndWithNewline_correctly() {
-        val index = RowIndex.create(5)
+        val index = RowIndex.create()
         index.add("abc\n12".toByteArray(StandardCharsets.UTF_8))
         index.delete(1, 1, 1) // Delete character at position 1 in row 1
         assertEquals(2, index.rowLengths().size, "Row size should remain 2 after deletion.")
@@ -195,7 +195,7 @@ class TextRowIndexTests {
 
     @Test
     fun deleteWithinSingleLine_deletesCharactersCorrectly() {
-        val index = RowIndex.create(5)
+        val index = RowIndex.create()
         index.add("abcd\n".toByteArray(StandardCharsets.UTF_8))
         index.delete(0, 1, 2) // Delete characters from column 1 to 2
         // "abcd\n" becomes "ad\n" → row0 length = 3; row1 is the empty row after newline.
@@ -210,7 +210,7 @@ class TextRowIndexTests {
 
     @Test
     fun deleteAcrossMultipleLines_deletesCorrectly() {
-        val index = RowIndex.create(5)
+        val index = RowIndex.create()
         index.add("ab\ncd\nef\ngh\n".toByteArray(StandardCharsets.UTF_8))
         index.delete(0, 1, 6) // Delete from row 0, column 1, length 6
         assertEquals(3, index.rowLengths().size, "Row size should be 3 after deletion across multiple lines.")
@@ -221,7 +221,7 @@ class TextRowIndexTests {
 
     @Test
     fun rowSizeWithInsertAndDelete_updatesCorrectly() {
-        val index = RowIndex.create(5)
+        val index = RowIndex.create()
         assertEquals(1, index.rowSize(), "Initial row size should be 1.")
 
         index.insert(0, 0, "aaa\nbbb\nccc".toByteArray(StandardCharsets.UTF_8))
@@ -246,7 +246,7 @@ class TextRowIndexTests {
 
     @Test
     fun rowSizeWithInsertAndDelete2_updatesCorrectly() {
-        val index = RowIndex.create(5)
+        val index = RowIndex.create()
         assertEquals(1, index.rowSize(), "Initial row size should be 1.")
 
         index.insert(0, 0, "aaa\nbbb\nccc".toByteArray(StandardCharsets.UTF_8))
@@ -262,7 +262,7 @@ class TextRowIndexTests {
 
     @Test
     fun rowSizeWithInsertAndDelete3_updatesCorrectly() {
-        val index = RowIndex.create(5)
+        val index = RowIndex.create()
         assertEquals(1, index.rowSize(), "Initial row size should be 1.")
 
         index.insert(0, 0, "aaa\nbbb\nccc".toByteArray(StandardCharsets.UTF_8))
@@ -278,7 +278,7 @@ class TextRowIndexTests {
 
     @Test
     fun rowSizeWithInsertAndDelete4_updatesCorrectly() {
-        val index = RowIndex.create(5)
+        val index = RowIndex.create()
         assertEquals(1, index.rowSize(), "Initial row size should be 1.")
 
         index.insert(0, 0, "aaa\nbbb\nccc".toByteArray(StandardCharsets.UTF_8))
@@ -296,7 +296,7 @@ class TextRowIndexTests {
 
     @Test
     fun serial_computesSerialNumbersCorrectly() {
-        val index = RowIndex.create(3)
+        val index = RowIndex.create()
         index.insert(0, 0, "a\nbb\nccc\ndddd\neeeee".toByteArray(StandardCharsets.UTF_8))
         assertEquals(0L, index.serial(0, 0), "Serial for (0,0) should be 0.")
         assertEquals(1L, index.serial(0, 1), "Serial for (0,1) should be 1.")

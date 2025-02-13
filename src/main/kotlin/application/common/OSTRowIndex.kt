@@ -6,17 +6,14 @@ package org.editor.application.common
  *
  * @param T the type of data processed (e.g. ByteArray or String).
  * @param Self the concrete type that extends OSTRowIndex.
- * @param cacheInterval controls the sampling of cumulative offsets.
  * @param newlineToken a token representing the newline.
- * @param splitFunction a lambda to split incoming [data] into row–length increments.
+ * @param splitFunction a lambda to split incoming into row–length increments.
  */
 abstract class OSTRowIndex<T, Self : OSTRowIndex<T, Self>>(
-    protected val cacheInterval: Int,
     protected val newlineToken: T,
     protected val splitFunction: (T) -> IntArray
 ) {
 
-    // --- Internal AVL Node ---
     protected data class Node(
         var rowLength: Int,
         var left: Node? = null,
@@ -100,6 +97,10 @@ abstract class OSTRowIndex<T, Self : OSTRowIndex<T, Self>>(
             pos == leftSize -> root
             else -> getNode(root.right, pos - leftSize - 1)
         }
+    }
+
+    fun getRowLength(pos: Int): Int {
+        return getNode(root, pos)?.rowLength ?: 0
     }
 
     /**
@@ -314,38 +315,16 @@ abstract class OSTRowIndex<T, Self : OSTRowIndex<T, Self>>(
     }
 
     /**
-     * Returns a sampled cache of cumulative offsets (every [cacheInterval]th offset).
-     */
-    open fun stCache(): LongArray {
-        val cumulative = mutableListOf<Long>()
-        fun inorder(node: Node?, acc: Long): Long {
-            if (node == null) return acc
-            var cur = inorder(node.left, acc)
-            cur += node.rowLength
-            cumulative.add(cur)
-            cur = inorder(node.right, cur)
-            return cur
-        }
-        inorder(root, 0L)
-        val cache = mutableListOf<Long>()
-        for (i in cumulative.indices step cacheInterval) {
-            cache.add(cumulative[i])
-        }
-        return cache.toLongArray()
-    }
-
-    /**
      * Returns a deep copy (snapshot) of this index.
      */
     open fun snapshot(): Self {
-        val newIndex = createInstance(cacheInterval, newlineToken, splitFunction)
+        val newIndex = createInstance(newlineToken, splitFunction)
         newIndex.root = deepCopy(root)
         return newIndex
     }
 
     // --- Abstract factory method for snapshot ---
     protected abstract fun createInstance(
-        cacheInterval: Int,
         newlineToken: T,
         splitFunction: (T) -> IntArray
     ): Self

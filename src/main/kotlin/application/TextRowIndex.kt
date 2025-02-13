@@ -4,13 +4,11 @@ import org.editor.application.common.LineSeparator
 import org.editor.application.common.OSTRowIndex
 
 /**
- * RowInd for string–based text. Uses the platform’s newline string by default.
+ * TextRowIndex for string–based text. Uses the platform’s newline string by default.
  */
 class TextRowIndex private constructor(
-    cacheInterval: Int,
     newlineStr: String
 ) : OSTRowIndex<String, TextRowIndex>(
-    cacheInterval,
     newlineStr,
     splitFunction = { data ->
         if (data.isEmpty()) {
@@ -39,27 +37,22 @@ class TextRowIndex private constructor(
 
     companion object {
         /**
-         * Creates a RowInd with the platform newline and cache interval 100.
+         * Creates a RowInd with the platform newline
          */
-        fun create(): TextRowIndex = create(LineSeparator.platform.str(), 100)
+        fun create(): TextRowIndex = create(LineSeparator.platform.str())
 
-        /**
-         * Creates a RowInd with the platform newline and the specified cache interval.
-         */
-        fun create(cacheInterval: Int): TextRowIndex = create(LineSeparator.platform.str(), cacheInterval)
 
         /**
          * Creates a RowInd with the provided newline string and optional cache interval.
          */
-        fun create(newlineStr: String, cacheInterval: Int = 100): TextRowIndex =
-            TextRowIndex(cacheInterval, newlineStr)
+        fun create(newlineStr: String): TextRowIndex =
+            TextRowIndex(newlineStr)
     }
 
     override fun createInstance(
-        cacheInterval: Int,
         newlineToken: String,
         splitFunction: (String) -> IntArray
     ): TextRowIndex {
-        return TextRowIndex(cacheInterval, newlineToken)
+        return TextRowIndex(newlineToken)
     }
 }
