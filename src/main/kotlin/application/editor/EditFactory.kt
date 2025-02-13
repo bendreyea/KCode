@@ -4,7 +4,7 @@ import org.editor.application.common.UserCaret
 import org.editor.application.doc.Document
 
 /**
- * A lightweight factory for creating Edit instances.
+ * A factory for creating Edit instances.
  */
 object EditFactory {
     fun createInsert(row: Int, col: Int, text: CharSequence, lineSeparator: String): Edit.Insert {

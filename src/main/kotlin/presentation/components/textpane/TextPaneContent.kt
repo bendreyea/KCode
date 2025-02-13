@@ -14,7 +14,6 @@ import org.editor.syntax.highlighter.IncrementalHighlighter
 import org.editor.syntax.highlighter.ParseCacheManager
 import org.editor.syntax.highlighter.Parser
 import org.editor.syntax.intervalTree.Interval
-import kotlin.coroutines.cancellation.CancellationException
 
 /**
  * Provides the “document model” for our custom KTextPane,
@@ -128,19 +127,5 @@ class TextPaneContent(private val textEdit: TextEdit) {
 
     private fun notifyChange(start: Int, end: Int) {
         listeners.forEach { it.invoke(start, end) }
-    }
-}
-
-/**
- * Safe cancellation that ensures the previous job is fully canceled before launching a new one.
- */
-private suspend fun Job?.cancelAndJoinSafely() {
-    this?.let {
-        it.cancel()
-        try {
-            it.join()
-        } catch (e: CancellationException) {
-            e.printStackTrace()
-        }
     }
 }
