@@ -1,4 +1,4 @@
-package org.editor.presentation.components
+package org.editor
 
 import kotlinx.coroutines.CoroutineDispatcher
 import javax.swing.SwingUtilities

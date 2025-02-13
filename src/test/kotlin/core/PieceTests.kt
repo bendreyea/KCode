@@ -116,4 +116,34 @@ class PieceTests {
         assertEquals("1\n", String(a))
         assertEquals("23", String(b))
     }
+
+    @Test
+    fun withInsert_ImmutableStyle() {
+        val pt = PieceTable.create()
+        val pt2 = pt.withInsert(0, "Hello".toByteArray())
+        val pt3 = pt2.withInsert(pt2.length(), " World".toByteArray())
+
+        // Original still empty
+        assertEquals(0, pt.length())
+        assertEquals("", String(pt.bytes()))
+
+        // pt2 = "Hello"
+        assertEquals("Hello", String(pt2.bytes()))
+
+        // pt3 = "Hello World"
+        assertEquals("Hello World", String(pt3.bytes()))
+    }
+
+    @Test
+    fun withDelete_ImmutableStyle() {
+        val pt = PieceTable.create().withInsert(0, "Hello World".toByteArray())
+
+        // Delete " World"
+        val pt2 = pt.withDelete(5, 6)
+
+        // The original still "Hello World"
+        assertEquals("Hello World", String(pt.bytes()))
+        // The new one is "Hello"
+        assertEquals("Hello", String(pt2.bytes()))
+    }
 }

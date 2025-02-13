@@ -1,6 +1,6 @@
 package org.editor.presentation.components.textpane
 
-import org.editor.application.Caret
+import org.editor.application.common.UserCaret
 import java.awt.FontMetrics
 import java.awt.Toolkit
 import java.awt.datatransfer.DataFlavor
@@ -12,9 +12,7 @@ class KTextEditorController(
     private val textPane: TextPaneContent,
     private val fontMetrics: FontMetrics,
     private val editorTheme: EditorTheme,
-    private val getHeight: () -> Int,
-    private val getWidth: () -> Int,
-    private val repaintCallback: (Caret, Caret) -> Unit,
+    private val repaintCallback: (UserCaret, UserCaret) -> Unit,
     private val repaintVisibleRegion: () -> Unit
 ) : KeyAdapter(), MouseListener, MouseMotionListener {
 
@@ -26,9 +24,9 @@ class KTextEditorController(
     var scrollY: Int = 0
 
     // --------------------- Caret & Selection ----------------------
-    var caret = Caret(0, 0)
-    var selectionStart: Caret? = null
-    var selectionEnd: Caret? = null
+    var caret = UserCaret(0, 0)
+    var selectionStart: UserCaret? = null
+    var selectionEnd: UserCaret? = null
     private var isDragging = false
 
     private val PAGE_STEP_LINES = 5
@@ -64,7 +62,7 @@ class KTextEditorController(
     }
 
     // Modify caret updates to notify listeners
-    private fun updateCaret(newCaret: Caret) {
+    private fun updateCaret(newCaret: UserCaret) {
         caret = newCaret
         notifyCaretListeners()
     }
@@ -81,7 +79,7 @@ class KTextEditorController(
                 if (e.isShiftDown)
                     ensureSelectionStart()
 
-                updateCaret(Caret(0, 0))
+                updateCaret(UserCaret(0, 0))
                 if (!e.isShiftDown)
                     clearSelection()
 
@@ -127,11 +125,21 @@ class KTextEditorController(
                     pasteClipboard()
             }
 
+            KeyEvent.VK_Z -> {
+                if (e.isControlDown || e.isMetaDown) {
+                    undo() // CTRL+Z -> Undo
+                }
+            }
+            KeyEvent.VK_Y -> {
+                if (e.isControlDown || e.isMetaDown)
+                    redo() // CTRL+Y -> Redo
+            }
+
             KeyEvent.VK_ENTER -> {
                 if (hasSelection) {
                     deleteSelection()
                 }
-                val insertCaret = textPane.insertChar(caret.row, caret.col, '\n')
+                val insertCaret = textPane.insert(caret.row, caret.col, textPane.rowEnding().str())
 
                 updateCaret(insertCaret)
                 clearSelection()
@@ -223,7 +231,7 @@ class KTextEditorController(
         repaintCallback(prevCursor, caret)
     }
 
-    private fun moveMouseCaret(e: MouseEvent): Caret {
+    private fun moveMouseCaret(e: MouseEvent): UserCaret {
         val prevCursor = caret.copy()
 
         // Adjust y-coordinate with scrollY to get the correct row
@@ -234,7 +242,7 @@ class KTextEditorController(
         val adjustedX = e.x + scrollX - (editorTheme.gutterWidth + editorTheme.horizontalPadding)
         val col = measureClickOffset(textPane.getText(row), adjustedX)
 
-        updateCaret(Caret(row, col))
+        updateCaret(UserCaret(row, col))
         return prevCursor
     }
 
@@ -292,6 +300,23 @@ class KTextEditorController(
             clearSelection()
 
         repaintCallback(prev, caret)
+    }
+
+    // --------------------- Undo / Redo ---------------------
+    fun undo() {
+        val caretPositions = textPane.undo()
+        if (caretPositions.isNotEmpty()) {
+            updateCaret(caretPositions.first())
+            repaintVisibleRegion()
+        }
+    }
+
+    fun redo() {
+        val caretPositions = textPane.redo()
+        if (caretPositions.isNotEmpty()) {
+            updateCaret(caretPositions.first())
+            repaintVisibleRegion()
+        }
     }
 
     // --------------------- Selection & Clipboard ---------------------
@@ -353,7 +378,7 @@ class KTextEditorController(
         }
     }
 
-    fun orderedCursors(c1: Caret, c2: Caret): Pair<Caret, Caret> {
+    fun orderedCursors(c1: UserCaret, c2: UserCaret): Pair<UserCaret, UserCaret> {
         return if (c1 < c2) c1 to c2 else c2 to c1
     }
 }

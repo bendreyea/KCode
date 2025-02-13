@@ -22,6 +22,16 @@ data class Caret(val row: Int, val col: Int) : Comparable<Caret> {
          * @return A new [Caret] instance.
          */
         fun create(row: Int, col: Int): Caret = Caret(row, col)
+
+//        fun toUserCaret(caret: Caret, document: Document): UserCaret {
+//            val charCol = document.byteOffsetToCharOffset(caret.row, caret.col)
+//            return UserCaret(caret.row, charCol)
+//        }
+//
+//        fun toInternalCaret(userCaret: UserCaret, document: Document): Caret {
+//            val byteCol = document.charOffsetToByteOffset(userCaret.row, userCaret.col)
+//            return Caret(userCaret.row, byteCol)
+//        }
     }
 
     /**

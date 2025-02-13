@@ -1,6 +1,6 @@
 package org.editor.presentation.components.scrollpane
 
-import org.editor.application.Caret
+import org.editor.application.common.UserCaret
 import org.editor.presentation.components.textpane.CaretListener
 import org.editor.presentation.components.textpane.EditorTheme
 import org.editor.presentation.components.textpane.KTextPane
@@ -60,14 +60,14 @@ class KScrollPane(
         })
 
         content.addCaretListener(object : CaretListener {
-            override fun caretMoved(newCaret: Caret) {
+            override fun caretMoved(newCaret: UserCaret) {
                 ensureCaretVisible(newCaret)
             }
         })
     }
 
     // --------------------- Ensure Caret Visibility ---------------------
-    private fun ensureCaretVisible(caret: Caret) {
+    private fun ensureCaretVisible(caret: UserCaret) {
         // Calculate caret's pixel position
         val caretX = getCaretX(caret)
         val caretY = caret.row * content.fontMetrics.height
@@ -111,7 +111,7 @@ class KScrollPane(
         }
     }
 
-    private fun getCaretX(caret: Caret): Int {
+    private fun getCaretX(caret: UserCaret): Int {
         val lineText = content.textPane.getText(caret.row)
         val textUpToCaret = if (caret.col <= lineText.length) {
             lineText.substring(0, caret.col)

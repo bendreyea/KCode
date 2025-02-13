@@ -3,12 +3,13 @@ package org.editor.presentation.components.textpane
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.editor.ApplicationScope
-import org.editor.application.Caret
-import org.editor.presentation.components.SwingDispatchers
+import org.editor.SwingDispatchers
+import org.editor.application.common.UserCaret
 import java.awt.*
 import java.awt.event.MouseAdapter
 import java.awt.event.MouseEvent
 import javax.swing.JPanel
+import javax.swing.SwingUtilities
 import kotlin.math.max
 import kotlin.math.min
 
@@ -53,7 +54,7 @@ class KTextPane(
         isFocusable = true
         focusTraversalKeysEnabled = false
 
-        val repaintCallback: (Caret, Caret) -> Unit = { begin, end ->
+        val repaintCallback: (UserCaret, UserCaret) -> Unit = { begin, end ->
             scheduleRepaintLines(begin, end)
         }
 
@@ -61,12 +62,8 @@ class KTextPane(
             scheduleIncrementalRepaint()
         }
 
-        val getHeight: () -> Int = { viewportHeight }
-        val getWidth: () -> Int = { viewportWidth }
-
         controller = KTextEditorController(
             textPane, fontMetrics, theme,
-            getHeight, getWidth,
             repaintCallback, fullRepaintCallback
         )
 
@@ -90,7 +87,7 @@ class KTextPane(
     /**
      * Instead of parsing here, we only do a repaint. Parsing is done in the MainFrame after changes.
      */
-    private fun scheduleRepaintLines(begin: Caret, end: Caret) {
+    private fun scheduleRepaintLines(begin: UserCaret, end: UserCaret) {
         val (start, finish) = if (begin < end) begin to end else end to begin
         val startRow = start.row
         val endRow = finish.row
@@ -142,6 +139,12 @@ class KTextPane(
      * Coalesce multiple repaint requests into one EDT invocation.
      */
     private fun scheduleRepaint(rect: Rectangle) {
+        if (!SwingUtilities.isEventDispatchThread()) {
+            SwingUtilities.invokeLater { scheduleRepaint(rect) }
+            return
+        }
+
+        // Now we're on the EDT; update state safely.
         if (dirtyRegion == null) {
             dirtyRegion = rect
         } else {
@@ -157,7 +160,6 @@ class KTextPane(
                     }
                     dirtyRegion = null
                     repaintPending = false
-
                 }
             }
         }

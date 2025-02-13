@@ -1,5 +1,7 @@
-package org.editor.application
+package org.editor.application.editor
 
+import org.editor.application.common.UserCaret
+import org.editor.application.common.LineSeparator
 import java.nio.charset.Charset
 
 /**
@@ -14,10 +16,10 @@ interface TextEdit {
      * @param text The text to insert.
      * @return The new cursor position after insertion.
      */
-    fun insert(row: Int, col: Int, text: String): Caret
+    fun insert(row: Int, col: Int, text: CharSequence): UserCaret
 
     /**
-     * Deletes [length] characters starting at the specified position ([row], [col]),
+     * Deletes [len] characters starting at the specified position ([row], [col]),
      * moving to the right.
      *
      * @param row The row index from which to start deletion.
@@ -25,10 +27,10 @@ interface TextEdit {
      * @param len The number of characters to delete.
      * @return The cursor position after deletion.
      */
-    fun delete(row: Int, col: Int, len: Int = 1): Caret
+    fun delete(row: Int, col: Int, len: Int = 1): UserCaret
 
     /**
-     * Backspaces [length] characters starting at the specified position ([row], [col]),
+     * Backspaces [len] characters starting at the specified position ([row], [col]),
      * moving to the left.
      *
      * @param row The row index from which to start backspacing.
@@ -36,10 +38,10 @@ interface TextEdit {
      * @param len The number of characters to backspace.
      * @return The new cursor position after backspacing.
      */
-    fun backspace(row: Int, col: Int, len: Int = 1): Caret
+    fun backspace(row: Int, col: Int, len: Int = 1): UserCaret
 
     /**
-     * Replaces [length] characters at the specified position ([row], [col]) with [text].
+     * Replaces [len] characters at the specified position ([row], [col]) with [text].
      *
      * @param row The row index where the replacement starts.
      * @param col The column index within the row where the replacement starts.
@@ -47,7 +49,7 @@ interface TextEdit {
      * @param text The text to insert in place of the replaced characters.
      * @return The cursor position after replacement.
      */
-    fun replace(row: Int, col: Int, len: Int, text: String): Caret
+    fun replace(row: Int, col: Int, len: Int, text: CharSequence): UserCaret
 
     /**
      * Retrieves the text at the specified [row].
@@ -60,11 +62,11 @@ interface TextEdit {
     /**
      * Retrieves the text between cursor positions [start] and [end].
      *
-     * @param start The starting [Caret] position.
-     * @param end The ending [Caret] position.
+     * @param start The starting [UserCaret] position.
+     * @param end The ending [UserCaret] position.
      * @return The concatenated text between [start] and [end].
      */
-    fun getText(start: Caret, end: Caret): String
+    fun getText(start: UserCaret, end: UserCaret): String
 
     /**
      * Retrieves the total number of rows in the document.
@@ -79,4 +81,16 @@ interface TextEdit {
      * @return The character set.
      */
     fun charset(): Charset
+
+    fun addEditorListener(listener: EditorChangeListener)
+
+    fun undo() : List<UserCaret>
+
+    fun redo() : List<UserCaret>
+
+    fun rowEnding(): LineSeparator
+
+    fun getVersion(): Int
+
+    fun serial(row: Int, col: Int): Long
 }

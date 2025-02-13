@@ -39,6 +39,10 @@ class ByteArrayBuffer private constructor(
         outputStream.close()
     }
 
+    fun snapshot(): ByteArrayBuffer {
+        return create(outputStream.toByteArray())
+    }
+
     companion object {
         /**
          * Creates an empty ByteArrayBufferWrapper.

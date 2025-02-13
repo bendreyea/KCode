@@ -2,16 +2,18 @@ package org.editor.syntax.intervalTree
 
 /**
  * A balanced binary-search tree keyed by Interval objects.
+ *
+ * Note: The tree is implemented as a red–black tree.
  */
 class IntervalTree<T : Interval> : Iterable<T> {
 
+    // The nil sentinel node; note that nil.parent/left/right all point to nil.
     private val nil = Node(key = null, isBlack = true).apply {
         parent = this
         left = this
         right = this
     }
 
-    // Sentinel node
     private var root = nil
     private var size = 0
 
@@ -19,20 +21,18 @@ class IntervalTree<T : Interval> : Iterable<T> {
 
     constructor(interval: T) : this() {
         val newNode = Node(key = interval, isBlack = false)
-        // newNode's parent, left, right are nil by default
-        // let’s say the root is black
-        newNode.blacken()
+        newNode.blacken() // root must always be black.
         root = newNode
         size = 1
     }
 
     /**
-     * Whether the tree is empty.
+     * Returns true if the tree is empty.
      */
-    fun isEmpty(): Boolean = (root == nil)
+    fun isEmpty(): Boolean = (root === nil)
 
     /**
-     * Number of intervals in the tree (including duplicates).
+     * Returns the number of intervals stored in the tree.
      */
     fun size(): Int = size
 
@@ -45,32 +45,26 @@ class IntervalTree<T : Interval> : Iterable<T> {
     }
 
     /**
-     * Returns true if an interval with the same [start,end] as 'interval'
-     * is in this tree.  (If duplicates are stored, this just checks
-     * for any matching 'Interval' in that node's set.)
+     * Returns true if an interval with the same [start,end] as [interval] is in this tree.
      */
     operator fun contains(interval: T): Boolean {
         val node = search(interval)
-        if (node.isNil)
-            return false
-
-        return node.intervals.contains(interval)
+        return if (node.isNil) false else node.intervals.contains(interval)
     }
 
     /**
-     * Insert the given interval into the red-black tree, storing
-     * duplicates in the same node if compareTo == 0.
-     * @return true if a new interval was added; false if it's already present
+     * Inserts the given interval into the red–black tree.
+     * Duplicates (when compareTo returns 0) are stored in the same node.
+     *
+     * @return true if the interval was newly added; false if it already existed.
      */
     fun insert(interval: T): Boolean {
         var parent = nil
         var current = root
 
-        // Standard BST insert logic
+        // Standard BST insert; update maxEnd along the way.
         while (!current.isNil) {
             parent = current
-
-            // On the way down, update the parent's maxEnd
             parent.updateMaxEndWith(interval.end)
 
             val cmp = interval.compareTo(current.key!!)
@@ -78,26 +72,19 @@ class IntervalTree<T : Interval> : Iterable<T> {
                 cmp < 0 -> current.left
                 cmp > 0 -> current.right
                 else -> {
-                    // Same key => store in that node's set if not already present
+                    // Same key: add to the set of intervals if not already present.
                     val added = current.intervals.add(interval)
-                    return if (added) {
-                        size++
-                        true
-                    } else {
-                        false
-                    }
+                    if (added) size++
+                    return added
                 }
             }
         }
 
-        // Create new node
-        val newNode = Node(
-            key = interval,
-            isBlack = false, // new nodes are red by default
-        )
+        // Create a new red node.
+        val newNode = Node(key = interval, isBlack = false)
 
         if (parent.isNil) {
-            // The tree was empty
+            // Tree was empty.
             root = newNode
         } else {
             if (interval < parent.key!!) {
@@ -105,68 +92,129 @@ class IntervalTree<T : Interval> : Iterable<T> {
             } else {
                 parent.right = newNode
             }
+            newNode.parent = parent
         }
-
         size++
 
-        // Fix up red-black invariants
+        // Fix up any red–black violations.
         fixInsert(newNode)
 
-        // After rotation/fix, ensure all ancestors have correct maxEnd
+        // Update maxEnd for all ancestors.
         updateMaxEndUpwards(newNode)
 
         return true
     }
 
     /**
-     * Delete 'interval' from the tree. If that node has duplicates,
-     * remove just that one from the 'intervals' set; if no duplicates remain,
-     * remove the node entirely from the red-black tree.
-     * @return true if the tree was modified
+     * Deletes the given interval from the tree.
+     * If the node contains duplicate intervals, only the matching interval is removed.
+     * When the last duplicate is removed, the node is deleted.
+     *
+     * @return true if the tree was modified.
      */
     fun delete(interval: T): Boolean {
         val node = search(interval)
-        if (node.isNil)
-            return false
+        if (node.isNil) return false
 
         val removed = node.intervals.remove(interval)
-        if (!removed)
-            return false
+        if (!removed) return false
 
         size--
 
         if (node.intervals.isNotEmpty()) {
-            // Just recalc maxEnd upward; no structural changes
+            // Only structural change is not needed; recalc maxEnd upward.
             node.recalcMaxEnd()
             updateMaxEndUpwards(node)
             return true
         }
 
-        // do the standard red-black delete for node with key
+        // Standard red–black delete for node removal.
         rbDelete(node)
-
         return true
     }
 
     /**
      * Returns a sorted list of all intervals in ascending order.
      */
-    fun getAll(): List<T> {
-        val result = mutableListOf<T>()
-        for (item in this) {
-            result.add(item)
-        }
+    fun getAll(): List<T> = this.toList()
 
+    /**
+     * Returns an iterator that traverses intervals in ascending order.
+     */
+    override fun iterator(): Iterator<T> = TreeIterator(root)
+
+    /**
+     * Returns a list of all intervals overlapping the given query range.
+     *
+     * Two intervals [a, b] and [c, d] overlap if a ≤ d and b ≥ c.
+     *
+     * This implementation uses an iterative approach (with an explicit stack)
+     * to avoid potential stack overflow with deep trees.
+     */
+    fun queryOverlapping(queryStart: Int, queryEnd: Int): List<T> {
+        val result = mutableListOf<T>()
+        val stack = ArrayDeque<Node>()
+        if (!root.isNil) stack.add(root)
+
+        while (stack.isNotEmpty()) {
+            val node = stack.removeLast()
+
+            // Check left subtree if it might contain intervals overlapping the query.
+            if (!node.left.isNil && node.left.maxEnd >= queryStart) {
+                stack.add(node.left)
+            }
+
+            // Check the current node.
+            if (node.key!!.start <= queryEnd && node.key!!.end >= queryStart) {
+                result.addAll(node.intervals)
+            }
+
+            // Check right subtree if the current node's start does not exceed queryEnd.
+            if (!node.right.isNil && node.key!!.start <= queryEnd) {
+                stack.add(node.right)
+            }
+        }
         return result
     }
 
     /**
-     * Returns an iterator that traverses intervals in ascending order by (start,end).
+     * Returns the interval whose end is closest (and less than or equal) to [position].
      */
-    override fun iterator(): Iterator<T> = TreeIterator(root)
+    fun queryClosestBefore(position: Int): T? {
+        var node = root
+        var closest: T? = null
+
+        while (!node.isNil) {
+            if (node.key!!.end <= position) {
+                closest = node.key
+                node = node.right
+            } else {
+                node = node.left
+            }
+        }
+        return closest
+    }
+
+    /**
+     * Returns the interval whose start is closest (and greater than or equal) to [position].
+     */
+    fun queryClosestAfter(position: Int): T? {
+        var node = root
+        var closest: T? = null
+
+        while (!node.isNil) {
+            if (node.key!!.start >= position) {
+                closest = node.key
+                node = node.left
+            } else {
+                node = node.right
+            }
+        }
+        return closest
+    }
 
     // --------------------------------------------------------------------
-    //  Red‑Black Node
+    //  Red–Black Node and Helper Methods
     // --------------------------------------------------------------------
     private inner class Node(
         var key: T? = null,
@@ -176,9 +224,13 @@ class IntervalTree<T : Interval> : Iterable<T> {
         var left: Node = nil
         var right: Node = nil
 
-        // E.g. for interval trees:
+        // For interval trees: maxEnd is the maximum end value in this subtree.
         var maxEnd: Int = key?.end ?: Int.MIN_VALUE
-        var intervals: MutableSet<T> = if (key != null) mutableSetOf(key!!) else mutableSetOf()
+
+        // In case of duplicate intervals, they are stored in this set.
+        var intervals: MutableSet<T> = mutableSetOf<T>().apply {
+            key?.let { add(it) }
+        }
 
         val isNil: Boolean
             get() = (this === nil)
@@ -192,7 +244,7 @@ class IntervalTree<T : Interval> : Iterable<T> {
         }
 
         /**
-         * Update this node's maxEnd if 'candidateEnd' is greater.
+         * Update this node's maxEnd if [candidateEnd] is greater.
          */
         fun updateMaxEndWith(candidateEnd: Int) {
             if (candidateEnd > maxEnd) {
@@ -201,7 +253,7 @@ class IntervalTree<T : Interval> : Iterable<T> {
         }
 
         /**
-         * Recalculate maxEnd from its own key, left child, right child.
+         * Recalculate maxEnd based on this node’s key and its children.
          */
         fun recalcMaxEnd() {
             var best = key?.end ?: Int.MIN_VALUE
@@ -211,10 +263,8 @@ class IntervalTree<T : Interval> : Iterable<T> {
         }
     }
 
-
     /**
-     * Standard BST search. If not found, returns the
-     * 'nil' sentinel.
+     * Standard BST search. Returns the node with the matching interval or the nil sentinel.
      */
     private fun search(interval: T): Node {
         var current = root
@@ -223,14 +273,14 @@ class IntervalTree<T : Interval> : Iterable<T> {
             current = when {
                 cmp < 0 -> current.left
                 cmp > 0 -> current.right
-                else -> return current  // found it
+                else -> return current // Found it.
             }
         }
-        return nil // not found
+        return nil
     }
 
     /**
-     * Rotate left at node x.
+     * Performs a left rotation at node [x].
      */
     private fun leftRotate(x: Node) {
         val y = x.right
@@ -249,13 +299,13 @@ class IntervalTree<T : Interval> : Iterable<T> {
         y.left = x
         x.parent = y
 
-        // Recalc maxEnd for x, then for y
+        // Update maxEnd values.
         x.recalcMaxEnd()
         y.recalcMaxEnd()
     }
 
     /**
-     * Rotate right at node x.
+     * Performs a right rotation at node [x].
      */
     private fun rightRotate(x: Node) {
         val y = x.left
@@ -263,7 +313,6 @@ class IntervalTree<T : Interval> : Iterable<T> {
         if (!y.right.isNil) {
             y.right.parent = x
         }
-
         y.parent = x.parent
         if (x.parent.isNil) {
             root = y
@@ -272,17 +321,16 @@ class IntervalTree<T : Interval> : Iterable<T> {
         } else {
             x.parent.left = y
         }
-
         y.right = x
         x.parent = y
 
-        // Recalc maxEnd for x, then for y
+        // Update maxEnd values.
         x.recalcMaxEnd()
         y.recalcMaxEnd()
     }
 
     /**
-     * After inserting a red node, fix possible red–red conflicts up the tree.
+     * Fixes up the tree after inserting a red node [z].
      */
     private fun fixInsert(z: Node) {
         var current = z
@@ -292,34 +340,30 @@ class IntervalTree<T : Interval> : Iterable<T> {
             if (parent === grand.left) {
                 val uncle = grand.right
                 if (!uncle.isBlack) {
-                    // Case 1: Uncle is red
+                    // Case 1: Uncle is red.
                     parent.blacken()
                     uncle.blacken()
                     grand.redden()
                     current = grand
                 } else {
-                    // Case 2 or 3
+                    // Case 2 or 3.
                     if (current === parent.right) {
-                        // Case 2: transform to case 3
                         current = parent
                         leftRotate(current)
                     }
-                    // Case 3
                     parent.blacken()
                     grand.redden()
                     rightRotate(grand)
                 }
             } else {
-                // mirror
+                // Mirror cases.
                 val uncle = grand.left
                 if (!uncle.isBlack) {
-                    // Case 1
                     parent.blacken()
                     uncle.blacken()
                     grand.redden()
                     current = grand
                 } else {
-                    // Case 2 or 3
                     if (current === parent.left) {
                         current = parent
                         rightRotate(current)
@@ -329,24 +373,18 @@ class IntervalTree<T : Interval> : Iterable<T> {
                     leftRotate(grand)
                 }
             }
-
-            if (current === root)
-                break
+            if (current === root) break
         }
         root.blacken()
     }
 
     /**
-     * Standard RB-Delete procedure, removing 'z' from the tree,
-     * then fix any red-black property violations.
+     * Standard red–black deletion. Removes node [z] and fixes any violations.
      */
     private fun rbDelete(z: Node) {
         var y = z
         var yOriginalColor = y.isBlack
-        var x: Node
-
-        // If z has at most one non-nil child, we remove z in-place.
-        // Else we find z's successor, swap the data, and remove successor.
+        val x: Node
 
         if (z.left.isNil) {
             x = z.right
@@ -355,42 +393,33 @@ class IntervalTree<T : Interval> : Iterable<T> {
             x = z.left
             transplant(z, z.left)
         } else {
-            // Two children: find successor
             val successor = treeMinimum(z.right)
             y = successor
             yOriginalColor = y.isBlack
-
-            // x is y's right child
-            x = y.right
+            val tempX = y.right
             if (y.parent === z) {
-                x.parent = y
+                tempX.parent = y
             } else {
                 transplant(y, y.right)
                 y.right = z.right
                 y.right.parent = y
             }
             transplant(z, y)
-
             y.left = z.left
             y.left.parent = y
             y.isBlack = z.isBlack
-
-            // We also need to copy over the maxEnd, intervals, key if needed
-            // But typically we are physically removing z's node
             y.recalcMaxEnd()
+            x = tempX
         }
 
-        // If the removed node (or replaced node) was black, fix the tree
         if (yOriginalColor) {
             fixDelete(x)
         }
-
-        // Recompute maxEnd up the chain
         updateMaxEndUpwards(x)
     }
 
     /**
-     * Standard RB Delete fix-up, ensuring red-black properties hold.
+     * Fix-up for red–black deletion.
      */
     private fun fixDelete(x: Node) {
         var current = x
@@ -398,25 +427,21 @@ class IntervalTree<T : Interval> : Iterable<T> {
             if (current === current.parent.left) {
                 var sibling = current.parent.right
                 if (!sibling.isBlack) {
-                    // Case 1
                     sibling.blacken()
                     current.parent.redden()
                     leftRotate(current.parent)
                     sibling = current.parent.right
                 }
                 if (sibling.left.isBlack && sibling.right.isBlack) {
-                    // Case 2
                     sibling.redden()
                     current = current.parent
                 } else {
                     if (sibling.right.isBlack) {
-                        // Case 3
                         sibling.left.blacken()
                         sibling.redden()
                         rightRotate(sibling)
                         sibling = current.parent.right
                     }
-                    // Case 4
                     sibling.isBlack = current.parent.isBlack
                     current.parent.blacken()
                     sibling.right.blacken()
@@ -424,7 +449,7 @@ class IntervalTree<T : Interval> : Iterable<T> {
                     current = root
                 }
             } else {
-                // mirror
+                // Mirror case.
                 var sibling = current.parent.left
                 if (!sibling.isBlack) {
                     sibling.blacken()
@@ -450,12 +475,11 @@ class IntervalTree<T : Interval> : Iterable<T> {
                 }
             }
         }
-
         current.blacken()
     }
 
     /**
-     * Replaces subtree 'u' with subtree 'v' in the tree. (Used for delete.)
+     * Replaces the subtree rooted at [u] with the subtree rooted at [v].
      */
     private fun transplant(u: Node, v: Node) {
         if (u.parent.isNil) {
@@ -465,24 +489,22 @@ class IntervalTree<T : Interval> : Iterable<T> {
         } else {
             u.parent.right = v
         }
-
         v.parent = u.parent
     }
 
     /**
-     * Returns the leftmost node in subtree 'node'.
+     * Returns the leftmost node in the subtree rooted at [node].
      */
     private fun treeMinimum(node: Node): Node {
         var current = node
         while (!current.left.isNil) {
             current = current.left
         }
-
         return current
     }
 
     /**
-     * Walk upward from 'startNode' to the root, recalculating maxEnd.
+     * Walk upward from [startNode] to the root, recalculating maxEnd values.
      */
     private fun updateMaxEndUpwards(startNode: Node) {
         var n = startNode
@@ -504,12 +526,8 @@ class IntervalTree<T : Interval> : Iterable<T> {
         }
 
         override fun hasNext(): Boolean {
-            // If the current node's intervals are not exhausted, we have a next
-            if (currentIntervalIter?.hasNext() == true) {
-                return true
-            }
+            if (currentIntervalIter?.hasNext() == true) return true
 
-            // Otherwise, pop the next node off the stack, get its intervals, pushLeft(node.right)
             while (stack.isNotEmpty()) {
                 val node = stack.removeLast()
                 currentIntervalIter = node.intervals.iterator()

@@ -1,6 +1,6 @@
 package org.editor.presentation.components.textpane
 
-import org.editor.application.Caret
+import org.editor.application.common.UserCaret
 
 /**
  * Interface for listening to caret movement events.
@@ -11,5 +11,5 @@ interface CaretListener {
      *
      * @param newCaret The new position of the caret.
      */
-    fun caretMoved(newCaret: Caret)
+    fun caretMoved(newCaret: UserCaret)
 }
